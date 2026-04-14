@@ -8,7 +8,7 @@ TRIGGER when: user wants to submit a batch job, check job status, cancel a job, 
 
 ## Context
 
-Fred Hutch uses Slurm as its workload manager on the Gizmo cluster. Jobs are submitted from the `rhino` login nodes and run on `gizmo` compute nodes. Every user is associated with a PI account that governs resource limits.
+Fred Hutch uses Slurm as its workload manager on the Gizmo cluster. Jobs are submitted from the `rhino` login nodes and run on `gizmo` compute nodes. Every user is associated with a PI account (format: `lastname_f`, e.g., `setty_m`) that governs resource limits and fair-share scheduling. Accounts are organized under division codes (e.g., bs=Basic Sciences, cb=Computational Biology, vi=Virology). Check your account with `sacctmgr show user $USER withassoc format=User,Account`.
 
 ## Instructions
 

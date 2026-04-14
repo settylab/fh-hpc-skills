@@ -18,21 +18,21 @@ The Gizmo cluster organizes compute nodes into partitions. Each partition has di
 
 | Partition | Max Wall Time | Node Gens | Notes |
 |-----------|---------------|-----------|-------|
-| **campus-new** | 30 days (default 3 days) | j, k | Default partition. Good for most workloads. |
-| **short** | 12 hours | j, k | Higher core limit. Use for quick jobs. |
-| **restart-new** | 30 days | j, k | Preemptible. No resource limits but jobs killed when needed. Requires `--qos=restart`. |
-| **chorus** | 7 days | harmony | AMD EPYC nodes with L40S GPUs. Requires `module purge` before use. |
-| **interactive** | 7 days | rhino | For interactive sessions via `grabnode`. |
-| **canto** | 7 days | canto | High-memory nodes with 1.5 TB RAM. |
+| **campus-new** | 30 days (default 3 days) | j, k | Default partition (QOS: public). Good for most workloads. |
+| **short** | 12 hours (default 1 hour) | j, k | Same nodes as campus-new, 2-min overtime grace. Quick jobs. |
+| **restart-new** | 30 days (default 3 days) | j, k | Preemptible (REQUEUE). Lowest priority. Requires `--qos=restart`. |
+| **chorus** | 7 days (default 4 hours) | harmony | AMD EPYC nodes with L40S GPUs. Max 8 CPUs per QOS. |
+| **interactive** | 7 days (default 1 day) | j, k | For interactive sessions via `grabnode`. Highest priority. |
+| **canto** | 7 days (default 4 hours) | canto | High-memory nodes with 1.5 TB RAM. |
 
 ### Node Specifications
 
 | Generation | Count | CPU | Cores/Node | Memory/Node | Partitions |
 |-----------|-------|-----|------------|-------------|------------|
-| j | 37 | Intel Gold 6146 | 24 | 384 GB | campus-new, short |
-| k | 161 | Intel Gold 6154 | 36 | 768 GB | campus-new, short |
+| j | 37 | Intel Gold 6146 | 24 | 384 GB | campus-new, short, interactive |
+| k | 161 | Intel Gold 6154 | 36 | 768 GB | campus-new, short, interactive |
 | harmony | 8 | AMD EPYC 9354P | 32 | 1536 GB | chorus |
-| canto | 3 | AMD or Intel | 36 | 1540 GB | campus-new, canto |
+| canto | 3 | AMD or Intel | 36 | 1540 GB | canto |
 
 ### Decision Guide
 
@@ -57,7 +57,7 @@ sbatch --partition=chorus --gpus=1 myjob.sh
 ```
 Remember to `module purge` and load fresh modules inside your script because harmony nodes run a different OS.
 
-**"I need an interactive terminal on a compute node"** --> Use `grabnode` (see fh.interactive-sessions skill).
+**"I need an interactive terminal on a compute node"** --> Use `grabnode` (see fh.interactive-sessions skill). The interactive partition runs on the same j/k nodes as campus-new but with the highest scheduling priority (PriorityTier=30000).
 
 ### Chorus Partition Special Requirements
 

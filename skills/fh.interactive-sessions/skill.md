@@ -20,32 +20,36 @@ ssh HutchNetID@rhino
 grabnode
 ```
 
-`grabnode` prompts for:
-- **CPUs**: number of cores (default 1, request only what you need)
-- **Memory**: RAM in GB
-- **Walltime**: how long you need the session
-- **GPU**: whether you need GPU access
+`grabnode` prompts interactively for four parameters in order:
+
+1. **CPUs/cores** — "How many CPUs/cores would you like to grab on the node? [1-36]"
+2. **Memory (GB)** — "How much memory (GB) would you like to grab? [default]"
+   Default = cores × 20 GB, capped at 683 GB
+3. **Days** — "Please enter the max number of days you would like to grab this node: [1-7]"
+   Default = 1 day
+4. **GPU** — "Do you need a GPU? [y/N]"
+   Default = no GPU
+
+Before prompting, it shows your existing interactive sessions via `squeue`.
 
 ## grabnode Details
 
-- Uses `srun` internally to allocate resources on the `interactive` partition
-- Accepts standard `sbatch` flags for advanced use: `grabnode --mem=16G -c 4`
-- Maximum limits: 36 cores, 1 GPU, 3 concurrent interactive jobs per user
-- Interactive partition has highest scheduling priority, 7-day max walltime
+- Uses `srun --pty` internally to allocate resources on the `interactive` partition
+- Passes any extra command-line arguments directly to `srun` (standard Slurm flags)
+- Maximum limits: 36 cores, 683 GB memory, 1 GPU, 7 days, 3 concurrent interactive jobs per user
+- Interactive partition has highest scheduling priority (PriorityTier=30000)
 - Sessions are Slurm jobs and count against your allocation
+- X11 forwarding is enabled automatically if `$DISPLAY` is set
 
-### Passing sbatch Flags
+### Passing Extra Slurm Flags
 
-`grabnode` accepts common sbatch options directly:
+`grabnode` passes trailing arguments through to `srun`:
 ```bash
-# Request 4 CPUs for 8 hours
-grabnode --cpus-per-task=4 --time=08:00:00
+# Request a specific partition
+grabnode --partition=chorus
 
-# Request a GPU
-grabnode --gpus=1
-
-# Request a specific partition with GPU
-grabnode --partition=chorus --gpus=1
+# Any valid srun flag works
+grabnode --constraint=<feature>
 ```
 
 ### When to Use grabnode

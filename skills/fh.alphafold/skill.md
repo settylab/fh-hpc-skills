@@ -79,6 +79,19 @@ AlphaFold 3 takes JSON input files specifying the protein/nucleic acid sequences
 - Use versioned environments for reproducibility
 - Follow Fred Hutch data security policies
 
+## AlphaFold 2 (Module-Based)
+
+Older AlphaFold versions are available as Lmod modules for use on campus-new/short partitions:
+
+```bash
+module spider AlphaFold
+# Available: AlphaFold/2.1.1-fosscuda-2020b, AlphaFold/2.3.1-foss-2022a-CUDA-11.7.0
+
+module load AlphaFold/2.3.1-foss-2022a-CUDA-11.7.0
+```
+
+These run on standard GPU nodes (j/k class with GTX 1080 Ti / RTX 2080 Ti). For AF3, use the container-based approach on chorus (above).
+
 ## References
 
 - SciComp Wiki: https://sciwiki.fredhutch.org/compdemos/alphafold3/

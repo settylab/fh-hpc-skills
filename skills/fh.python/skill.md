@@ -8,7 +8,7 @@ TRIGGER when: user asks about Python on Gizmo/Rhino, virtual environments on the
 
 ## Context
 
-Fred Hutch provides Python through Lmod environment modules on the Rhino login nodes and Gizmo compute cluster. The `fhPython` module bundles 1,000+ scientific libraries (numpy, scipy, pandas, biopython, etc.). Users can also create virtual environments or use conda (Miniforge) for isolated package management. JupyterLab is available via modules or Open OnDemand.
+Fred Hutch provides Python through Lmod environment modules on the Rhino login nodes and Gizmo compute cluster. The `fhPython` module is a curated Python distribution with scientific libraries (numpy, scipy, pandas, etc. via the foss toolchain, plus additional packages like rich, Pygments, and plotsr). Users can also create virtual environments or use conda (Miniforge) for isolated package management. JupyterLab is available via modules or Open OnDemand.
 
 ## Instructions
 
@@ -20,7 +20,7 @@ module avail Python/3
 module avail fhPython
 
 # Load the Fred Hutch curated Python (1,000+ scientific packages)
-ml fhPython/3.8.6-foss-2020b-Python-3.8.6
+ml fhPython/3.11.3-foss-2023a
 ```
 
 Always load Python via `ml` rather than calling a bare `python3`. This ensures reproducibility and access to the correct version.
@@ -29,7 +29,7 @@ Always load Python via `ml` rather than calling a bare `python3`. This ensures r
 
 ```bash
 # Load the base Python module first
-ml fhPython/3.8.6-foss-2020b-Python-3.8.6
+ml fhPython/3.11.3-foss-2023a
 
 # Create a venv in your home directory
 python3 -m venv ~/mypython

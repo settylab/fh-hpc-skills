@@ -17,14 +17,17 @@ Fred Hutch provides R through Lmod environment modules on Rhino/Gizmo. RStudio S
 ```bash
 # Find available R versions
 module spider R
+module avail fhR
+
+# Load the default Fred Hutch R (R 4.4.1 with 200+ extensions including Bioconductor)
+ml fhR
 
 # Load a specific version
-ml R/3.6.2-foss-2019b-fh1
-
-# Load the latest available
-ml R/
+ml fhR/4.4.1-foss-2023b
 R
 ```
+
+Available fhR versions: 4.0.2 through 4.4.1 (default). The `fhR` modules bundle a large set of Bioconductor and CRAN extensions (MAST, DiffBind, ArchR, tidymodels, paws, etc.).
 
 Always use `ml R` rather than calling a bare `R` on Rhino. This ensures reproducibility and proper library paths.
 

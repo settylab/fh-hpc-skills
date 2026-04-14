@@ -50,15 +50,15 @@ Loading software via `ml` rather than calling bare commands (e.g., `ml R` instea
 ### Common Module Patterns
 
 ```bash
-# Load the Fred Hutch curated Python (1,000+ scientific packages)
-ml fhPython/3.8.6-foss-2020b-Python-3.8.6
+# Load the Fred Hutch curated Python (scientific packages via foss toolchain)
+ml fhPython                            # default: fhPython/3.11.3-foss-2023a
 
 # Load JupyterLab with scientific packages
 ml purge
 ml JupyterLab/4.0.3-GCCcore-12.2.0 Seaborn/0.12.2-foss-2022b
 
-# Load R
-ml R/4.3.1-gfbf-2022b
+# Load the Fred Hutch curated R (200+ Bioconductor/CRAN extensions)
+ml fhR                                 # default: fhR/4.4.1-foss-2023b
 ```
 
 ### Choosing Between Rhino and Gizmo

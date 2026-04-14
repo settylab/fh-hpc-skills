@@ -46,9 +46,9 @@ sbatch --partition=chorus --gpus=3 myscript.sh
 
 **Interactive GPU session:**
 ```bash
-grabnode --gpus=1
-# or for chorus:
-grabnode --partition=chorus --gpus=1
+# grabnode prompts "Do you need a GPU? [y/N]" — answer y
+# This requests --gres=gpu on the interactive partition
+grabnode
 ```
 
 ### CUDA Configuration
