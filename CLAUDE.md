@@ -28,10 +28,27 @@ sources.yml          # Wiki URL manifest
 ## Agent Coordination Protocol
 
 ### Lockfiles (`shared/lockfiles/`)
-- Format: `{section}_{page}.lock` containing agent ID and timestamp
-- An agent MUST create a lockfile before working on a page
-- An agent MUST remove its lockfile when done
-- A supervising agent must clean up lockfiles of finished subagents
+
+Format: `{section}_{page}.lock`, YAML content:
+
+```yaml
+agent_name: ingest-compute       # Name used in Agent(name=...) for SendMessage
+parent_name: orchestrator        # Parent agent name, for sibling escalation via SendMessage
+session_id: 4c46ec97-630e-...    # Claude Code session UUID (for log inspection)
+started_at: 2026-04-14T08:03:18Z # ISO 8601
+work_description: "Ingesting compute_jobs and compute_parallel wiki pages"
+```
+
+**Rules:**
+- An agent MUST create a lockfile before working on a page and remove it when done.
+- Never remove a lockfile from a running agent.
+
+**Checking if a lock holder is still alive:**
+Claude Code writes to `~/.claude/projects/{project-slug}/{session_id}.jsonl` on every tool call. Check this file's mtime to determine if the locking agent is still active. If the log has not been modified for an unreasonable duration (given the work described in the lockfile), the agent is likely dead and the lock is stale.
+
+**Communication between agents:**
+- **Subagents with a shared parent**: Use `SendMessage(to: parent_name, ...)` to escalate. The parent can check on the lock holder or relay messages between siblings.
+- **Separate Claude Code sessions**: Use Agent Teams messaging (enabled via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) for direct cross-session communication, including lock status queries.
 
 ### Reports (`shared/reports/`)
 - Format: `{agent-id}_{section}.md`

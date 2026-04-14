@@ -1,6 +1,6 @@
 # SciComp Wiki URL Manifest
 # All pages to ingest from https://sciwiki.fredhutch.org
-# Status: pending | locked | done
+# last_processed: date (ISO 8601) the page was last fetched and distilled into skills
 
 base_url: https://sciwiki.fredhutch.org
 
@@ -9,184 +9,184 @@ sections:
     title: "Access and Credentials"
     pages:
       - path: /scicomputing/access_overview/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/access_credentials/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/access_methods/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/access_permissions/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/access_aws/
-        status: pending
+        last_processed: 2026-04-14
 
   storage:
     title: "Data Storage"
     pages:
       - path: /scicomputing/store_overview/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/store_databases/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/store_posix/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/store_task/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/store_objectstore/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/store_collaboration/
-        status: pending
+        last_processed: 2026-04-14
 
   software:
     title: "Software"
     pages:
       - path: /scicomputing/software_overview/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/software_R/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/software_python/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/software_linux101/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/software_running/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/software_managecode/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/software_examples/
-        status: pending
+        last_processed: 2026-04-14
 
   compute:
     title: "Large Scale Computing"
     pages:
       - path: /scicomputing/compute_overview/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_quickstart/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_platforms/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_environments/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_scientificSoftware/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_jobs/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_parallel/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_cloud/
-        status: pending
+        last_processed: 2026-04-14
       - path: /scicomputing/compute_gpu/
-        status: pending
+        last_processed: 2026-04-14
 
   grants:
     title: "Grant Writers"
     pages:
       - path: /scicomputing/compute_grants/
-        status: pending
+        last_processed: 2026-04-14
 
   compdemos:
     title: "Resource Library (Demos & Tutorials)"
     pages:
       - path: /compdemos/howtoRhino/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/grabnode/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/gizmo_partition_index/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/gizmo_short_partition/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/login-node-resource-management/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/Apptainer/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/Docker/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/nextflow/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/Cromwell/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/aws-s3/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/aws-batch/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/aws-credits/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/python_virtual_environments/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/python_logging/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/R_tips_tricks/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/rslurm_intro/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/rslurm_example/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/shiny/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/git_tips/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/managing-module-versions/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/VS-Code_lmod/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/vscode_markdown_howto/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/mydb/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/store_job_local/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/snapshots/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/motuz/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/globus-personal/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/sharing-data-presigned-url/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/ssh_host_key_management/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/AWSCLI_WSL/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/Mountain-CyberDuck/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/aspera-change-destination/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/aspera-on-nx/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/github_pages-FHtheme/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/GDC_Data_Download/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/gdc-client-hints/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/ingest-Large-Data/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/matlab/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/maxquant/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/microbiome_tools/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/onboard/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/plyranges-workshop/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/r-2018b-matrix-errors/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/ucsc-track-s3/
-        status: pending
+        last_processed: 2026-04-14
       - path: /compdemos/alphafold3/
-        status: pending
+        last_processed: 2026-04-14
 
   pathways:
     title: "Pathways"
     pages:
       - path: /pathways/path-grab/
-        status: pending
+        last_processed: 2026-04-14
       - path: /pathways/path-interactive/
-        status: pending
+        last_processed: 2026-04-14
       - path: /pathways/path-batch-computing/
-        status: pending
+        last_processed: 2026-04-14
       - path: /pathways/path-mydb-mariadb/
-        status: pending
+        last_processed: 2026-04-14
       - path: /pathways/path-cbio-fh-instance/
-        status: pending
+        last_processed: 2026-04-14
       - path: /pathways/path-migrating-data-from-fast-to-cloud/
-        status: pending
+        last_processed: 2026-04-14
