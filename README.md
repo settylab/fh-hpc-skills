@@ -70,9 +70,12 @@ Cloning into `~/.claude/` ensures skills are accessible inside the [agent_sandbo
 
 ```bash
 git clone git@github.com:settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
-mkdir -p ~/.claude/skills
+
+# Symlink into the Claude Code config directory (respects custom CLAUDE_CONFIG_DIR)
+SKILLS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
+mkdir -p "$SKILLS_DIR"
 for skill in ~/.claude/fh-hpc-skills/skills/fh.*/; do
-  ln -sf "$skill" ~/.claude/skills/"$(basename "$skill")"
+  ln -sf "$skill" "$SKILLS_DIR/$(basename "$skill")"
 done
 ```
 
@@ -85,14 +88,16 @@ git clone https://github.com/settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
 ### Manual install (single skill)
 
 ```bash
-mkdir -p ~/.claude/skills
-cp -r ~/.claude/fh-hpc-skills/skills/fh.slurm ~/.claude/skills/
+SKILLS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
+mkdir -p "$SKILLS_DIR"
+cp -r ~/.claude/fh-hpc-skills/skills/fh.slurm "$SKILLS_DIR/"
 ```
 
 ### Verify installation
 
 ```bash
-ls ~/.claude/skills/fh.*/skill.md
+SKILLS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
+ls "$SKILLS_DIR"/fh.*/SKILL.md
 ```
 
 Skills become available immediately in your next Claude Code session. No restart required.
@@ -140,13 +145,13 @@ To update a skill:
 
 1. Check the [SciComp Wiki](https://sciwiki.fredhutch.org/scicomputing/comp_index/) for the latest documentation
 2. Verify against the live cluster (paths, modules, partitions may change)
-3. Edit `skills/<name>/skill.md` directly
+3. Edit `skills/<name>/SKILL.md` directly
 4. Ensure the `description:` frontmatter is specific enough for accurate skill loading
 5. Run the validation agent to check for inconsistencies
 
 To add a new skill:
 
-1. Create `skills/fh.<name>/skill.md` with frontmatter and a TRIGGER line
+1. Create `skills/fh.<name>/SKILL.md` with frontmatter and a TRIGGER line
 2. Keep it focused on one topic — if it exceeds ~150 lines, consider splitting
 3. Cross-reference related skills rather than duplicating content
 

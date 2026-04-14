@@ -40,14 +40,14 @@ sources.yml          # Wiki URL manifest
 ## Skill Format
 
 Each skill lives in `skills/{name}/` with:
-- `skill.md` — The skill prompt with frontmatter (description for lookup)
+- `SKILL.md` — The skill prompt with frontmatter (description for lookup)
 - Supporting files as needed
 
 ## Building & Testing
 
 ```bash
 # Validate all skills have proper frontmatter
-for f in skills/*/skill.md; do head -5 "$f"; echo "---"; done
+for f in skills/*/SKILL.md; do head -5 "$f"; echo "---"; done
 
 # Check for broken references
 grep -r '/scicomputing/' skills/ | grep -v 'sciwiki.fredhutch.org'
