@@ -47,6 +47,7 @@ srun --cpus-per-task=4 --time=02:00:00 my_command
 | `-c` / `--cpus-per-task` | CPUs per task | `-c 4` |
 | `-n` / `--ntasks` | Number of tasks | `-n 1` |
 | `-t` / `--time` | Wall time (D-HH:MM:SS) | `-t 1-00:00:00` |
+| `--time-min` | Minimum useful time (enables backfill) | `--time-min=2:00:00` |
 | `-p` / `--partition` | Partition | `-p campus-new` |
 | `-J` / `--job-name` | Job name | `-J alignment` |
 | `-o` / `--output` | Output file | `-o slurm-%j.out` |
@@ -56,6 +57,17 @@ srun --cpus-per-task=4 --time=02:00:00 my_command
 | `--nice` | Lower scheduling priority | `--nice=100` |
 | `--mail-user` | Email address | |
 | `--mail-type` | Events: BEGIN,END,FAIL,ALL | |
+
+### Backfill Scheduling with --time-min
+
+Shorter jobs are more likely to start quickly because the scheduler can backfill them into gaps. If your job can make useful progress in less than the maximum wall time, use `--time-min` alongside `--time` to let the scheduler know:
+
+```bash
+# Job needs at most 24h, but can do useful work in as little as 2h
+sbatch --time=1-00:00:00 --time-min=2:00:00 myjob.sh
+```
+
+The scheduler may start the job in a 4-hour gap it would otherwise skip, allocating somewhere between `--time-min` and `--time`. This is especially useful for checkpointable workloads on `campus-new`.
 
 ### Memory at Fred Hutch
 
@@ -82,6 +94,22 @@ sstat -j <jobID>
 # Historical job info (after completion)
 sacct -j <jobID> --format=JobID,JobName,Partition,State,ExitCode,Elapsed,MaxRSS
 ```
+
+**Limit squeue polling.** Scripts or monitoring loops that call `squeue` should sleep at least 30-60 seconds between calls. Tight polling (every few seconds) stresses the Slurm controller and can degrade scheduling for everyone on the cluster.
+
+### Resource Profiling with sacct
+
+After a job completes, use `sacct` to measure actual resource consumption before scaling up. This prevents over-requesting CPUs, memory, or walltime on production runs.
+
+```bash
+# One-off profiling of a completed job
+sacct -j <jobID> --format=JobID%20,JobName,Elapsed,State,ExitCode,MaxRSS,AllocCPUS,AllocTRES%32
+
+# Recommended: add this to ~/.bashrc or ~/.zshrc for consistent output
+export SACCT_FORMAT="JobID%20,JobName,User,Partition,Elapsed,State,ExitCode,MaxRSS,AllocTRES%32"
+```
+
+With `SACCT_FORMAT` set, a bare `sacct -j <jobID>` gives you everything you need for post-mortem analysis. Profile a representative test job, then add a 15-20% buffer for production runs.
 
 ### Modifying and Canceling Jobs
 
@@ -141,6 +169,41 @@ sacct -j <arrayJobID> --format=JobID,State | grep FAILED
 # Resubmit only those (e.g., tasks 7,23,51)
 sbatch --array=7,23,51 myjob.sh
 ```
+
+### Array Job Pitfalls
+
+**Off-by-one errors.** `SLURM_ARRAY_TASK_ID` starts at whatever you specify in `--array`. If your input files are zero-indexed (`file_0.txt` through `file_9.txt`), use `--array=0-9`, not `--array=1-10`. Mismatches silently process the wrong files or fail on missing inputs.
+
+**Stable task-to-config mapping.** If you read parameters from a config file using `SLURM_ARRAY_TASK_ID` as a line index, that mapping must not change while jobs are pending or running. Adding or removing lines from the config file while an array is in flight will silently corrupt results. Snapshot your config file before submission:
+```bash
+cp params.tsv params_jobXXX.tsv   # freeze before submitting
+# In job script, read from the frozen copy
+```
+
+**Check exit codes.** A failed array task produces empty or truncated output. Downstream steps that consume these outputs without checking will run on garbage. Always verify after an array completes:
+```bash
+# Check for any non-zero exit codes
+sacct -j <arrayJobID> --format=JobID%20,State,ExitCode | grep -v "COMPLETED.*0:0"
+```
+
+### Job Dependency Chaining
+
+Chain multi-step pipelines so each stage starts only after the previous one succeeds:
+
+```bash
+# Submit step 1
+JOB1=$(sbatch --parsable step1.sh)
+
+# Step 2 starts only after step 1 succeeds
+JOB2=$(sbatch --parsable --dependency=afterok:$JOB1 step2.sh)
+
+# Step 3 after step 2
+sbatch --dependency=afterok:$JOB2 step3.sh
+```
+
+Dependency types: `afterok` (success), `afternotok` (failure, for cleanup), `afterany` (regardless of exit code), `after` (after start). For array jobs, `aftercorr` runs each task only after the corresponding task in the previous array completes.
+
+For complex multi-step pipelines, consider a workflow manager (Nextflow, Cromwell/WDL) instead of manual dependency chains. Workflow managers handle retries, caching, and partial reruns automatically.
 
 ### Preemptible (Restart) Jobs
 

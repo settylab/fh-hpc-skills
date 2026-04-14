@@ -31,14 +31,35 @@ module unload R
 # Purge all loaded modules
 ml purge
 
-# Search for available modules by name
+# Search for all versions of a module (preferred)
 module spider R
+
+# Get detailed info and loading instructions for a specific version
+module spider R/4.3.1-gfbf-2022b
+
+# List modules currently visible (may be incomplete — see below)
 module avail Python/3
 module avail fhPython
-
-# Get detailed info about a specific module
-module spider R/4.3.1-gfbf-2022b
 ```
+
+### module spider vs. module avail
+
+**Use `module spider` for discovery, not `module avail`.** Fred Hutch uses Lmod's hierarchical module system, where software compiled against a specific toolchain (compiler + MPI library) is only visible after that toolchain is loaded. `module avail` shows only what is currently visible given your loaded modules; `module spider` searches the entire module tree regardless of what is loaded.
+
+```bash
+# This may show nothing if the right toolchain is not loaded:
+module avail SomePackage
+
+# This always finds it if it is installed:
+module spider SomePackage
+
+# module spider also tells you what you need to load first:
+module spider SomePackage/1.2.3
+#   You will need to have the following modules loaded:
+#     GCCcore/12.3.0
+```
+
+The pattern is: `module spider <name>` to find what exists, then `module spider <name/version>` to learn what prerequisites to load, then `module load` those prerequisites followed by your target module.
 
 ### Why Use Modules
 
@@ -70,6 +91,26 @@ ml fhR                                 # default: fhR/4.4.1-foss-2023b
 | **Gizmo** (compute cluster) | Production runs, large jobs | Exclusive node access via Slurm, may queue |
 
 On both Rhino and Gizmo, load software through modules.
+
+### When Modules Are Enough vs When You Need More
+
+**Modules are sufficient when:**
+- The software you need is already available (`module spider <name>`)
+- You are doing interactive exploration or quick analyses
+- Your project uses only the packages bundled in fhPython or fhR
+- You need tools built against specific compilers/MPI stacks (e.g., CUDA-linked libraries)
+
+**Use uv (Python) or renv (R) when:**
+- You need packages not available in modules
+- Your project requires exact, lockfile-based reproducibility
+- You are building a shared project that others must reproduce
+- You are preparing an analysis for publication
+
+**Use mamba (not conda — it is very slow) when:**
+- Your project mixes Python + R + system-level C libraries in one environment
+- You need bioconda tools not available via PyPI or Lmod
+- Configure mamba with the Fred Hutch mirror via project-local `.condarc` (see `fh.python` skill); anaconda.org is blocked
+- **PATH ordering matters:** if a mamba env is active when `module load` runs, the module takes precedence. Deactivate all envs, load modules, then `mamba activate` to give the env priority
 
 ### Requesting New Software
 

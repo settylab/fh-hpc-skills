@@ -75,6 +75,106 @@ module load <chorus-compatible-module>
 your_command_here
 ```
 
+### Checkpointing for restart-new Partition
+
+Jobs on `restart-new` can be killed and requeued at any time. Without checkpointing, all progress is lost. Here are concrete recipes:
+
+**Python (pickle or torch) with SIGTERM handler:**
+```python
+import signal
+import sys
+import pickle
+from pathlib import Path
+
+CHECKPOINT = Path("checkpoint.pkl")
+
+def save_and_exit(signum, frame):
+    """Handle SIGTERM from Slurm preemption."""
+    print(f"Caught signal {signum}, saving checkpoint...")
+    with open(CHECKPOINT, "wb") as f:
+        pickle.dump({"iteration": current_iter, "state": model_state}, f)
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, save_and_exit)
+signal.signal(signal.SIGUSR1, save_and_exit)
+
+# Resume from checkpoint if it exists
+if CHECKPOINT.exists():
+    with open(CHECKPOINT, "rb") as f:
+        ckpt = pickle.load(f)
+    current_iter = ckpt["iteration"]
+    model_state = ckpt["state"]
+else:
+    current_iter = 0
+    model_state = initialize()
+
+# Main loop
+for i in range(current_iter, total_iterations):
+    current_iter = i
+    model_state = train_step(model_state)
+    # Periodic checkpoint every N iterations
+    if i % 100 == 0:
+        with open(CHECKPOINT, "wb") as f:
+            pickle.dump({"iteration": i, "state": model_state}, f)
+```
+
+For PyTorch, replace `pickle.dump` with `torch.save({"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict()}, CHECKPOINT)`.
+
+**R (saveRDS) with periodic checkpointing:**
+```r
+checkpoint_file <- "checkpoint.rds"
+
+# Resume if checkpoint exists
+if (file.exists(checkpoint_file)) {
+  state <- readRDS(checkpoint_file)
+  start_iter <- state$iteration + 1
+  results <- state$results
+} else {
+  start_iter <- 1
+  results <- list()
+}
+
+for (i in start_iter:total_iterations) {
+  results[[i]] <- run_analysis(i)
+  # Save checkpoint every 50 iterations
+  if (i %% 50 == 0) {
+    saveRDS(list(iteration = i, results = results), checkpoint_file)
+  }
+}
+# Final save
+saveRDS(list(iteration = total_iterations, results = results), checkpoint_file)
+```
+
+**Sbatch script for checkpointable restart-new jobs:**
+```bash
+#!/bin/bash
+#SBATCH --partition=restart-new
+#SBATCH --qos=restart
+#SBATCH --signal=B:USR1@120    # Send SIGUSR1 120 seconds before kill
+#SBATCH --requeue
+#SBATCH --time=3-00:00:00
+
+python my_checkpointable_script.py
+```
+
+### Fair-Share Awareness
+
+Your scheduling priority depends on recent usage. Heavy consumption lowers your priority for subsequent jobs. Use `sshare` and `hitparade` to understand your current standing:
+
+```bash
+# Check your fair-share score (1.0 = idle, approaches 0 with heavy use)
+sshare -u $USER
+
+# See cluster-wide utilization by account
+hitparade
+```
+
+**Recovery strategies when your priority is low:**
+- Stop submitting temporarily to let your fair-share score recover.
+- Submit tightly-constrained jobs (short walltime, few CPUs) that can backfill into gaps.
+- Use `--nice=100` for non-urgent work so it yields to higher-priority users.
+- Use `--time-min` to let the scheduler exploit short gaps.
+
 ### Local Scratch Storage (/loc)
 
 Each node provides fast local scratch at `/loc`:

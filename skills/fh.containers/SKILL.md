@@ -74,16 +74,109 @@ apptainer exec --nv my_gpu_container.sif python train.py
 
 ### Building Custom Containers
 
-Build containers on your local machine (where you have root/Docker access), push to a registry, then pull on the cluster:
+Build containers from **definition files** (Dockerfile or Apptainer `.def`), never from interactive sandbox modifications. This ensures builds are reproducible and auditable. Store definition files alongside workflow code in version control.
+
+**Build on compute nodes, not login nodes.** Container builds are resource-intensive and will be killed or cause problems on rhino login nodes. Use `grabnode` or submit a Slurm job:
 
 ```bash
-# On your local machine:
+grabnode  # request a compute node first
+
+# Build Apptainer image from definition file
+apptainer build my_image.sif my_image.def
+
+# Or pull from a registry
+apptainer pull docker://myuser/myimage:v1
+```
+
+To use a registry-based workflow, build and push from a machine with Docker access (local workstation or CI), then pull on the cluster:
+
+```bash
+# On your local machine or CI:
 docker build -t myuser/myimage:v1 .
 docker push myuser/myimage:v1
 
-# On the cluster:
+# On the cluster (from a compute node):
 apptainer pull docker://myuser/myimage:v1
 ```
+
+### SHA256 Digest Pinning
+
+Tags are mutable — `v1.0` today may point to different bytes tomorrow. Pin base images and dependencies by SHA256 digest for reproducibility:
+
+```dockerfile
+# Bad: mutable tag
+FROM ubuntu:22.04
+
+# Good: digest-pinned
+FROM ubuntu@sha256:2b7412e6465c3c7fc5bb21d3e6f1917c167358449fecac8176c6e496e5c1f05f
+```
+
+In Apptainer definition files:
+```
+Bootstrap: docker
+From: ubuntu@sha256:2b7412e6465c3c7fc5bb21d3e6f1917c167358449fecac8176c6e496e5c1f05f
+```
+
+Find digests with:
+```bash
+docker inspect --format='{{index .RepoDigests 0}}' ubuntu:22.04
+# Or from a registry:
+skopeo inspect docker://ubuntu:22.04 | jq '.Digest'
+```
+
+Pin every stage in multi-stage builds. Record the digest in your version control so the build is fully traceable.
+
+### Multi-Stage Builds
+
+Use multi-stage builds to separate build-time dependencies from the runtime image. This reduces image size and attack surface:
+
+```dockerfile
+# Stage 1: Build
+FROM ubuntu@sha256:abc123... AS builder
+RUN apt-get update && apt-get install -y build-essential cmake
+COPY . /src
+RUN cd /src && cmake . && make
+
+# Stage 2: Runtime (minimal)
+FROM ubuntu@sha256:abc123...
+COPY --from=builder /src/my_tool /usr/local/bin/
+ENTRYPOINT ["my_tool"]
+```
+
+This pattern is valuable for tools that need compilers or large build chains at build time but only a small binary at runtime.
+
+### BioContainers
+
+Over 9,000 bioinformatics tools are available as pre-built containers through BioContainers, generated from Bioconda recipes.
+
+**Important: The AWS ECR Public Gallery mirror for BioContainers was deprecated in August 2025.** If you have old scripts or configs pulling from `public.ecr.aws/biocontainers/`, update them. The recommended alternatives are:
+
+- **Seqera Containers** (https://seqera.io/containers/) — the current recommended registry for BioContainers images
+- **Quay.io** — `quay.io/biocontainers/<tool>:<version>`
+- **Build locally** from Bioconda recipes if registry access is unreliable
+
+### Conda/Mamba Inside Container Builds
+
+If your Dockerfile or `.def` file installs packages via conda or mamba, use only conda-forge and bioconda channels. Anaconda.org is blocked on Gizmo, and container builds that depend on the `defaults` channel will fail or produce non-redistributable images.
+
+```dockerfile
+# Install micromamba and use only open channels
+RUN micromamba install -y -n base -c conda-forge -c bioconda \
+    samtools=1.19 bcftools=1.19 && \
+    micromamba clean --all --yes
+```
+
+Alternatively, use pre-built BioContainers (which are built from Bioconda recipes with open channels) rather than rebuilding from scratch.
+
+### Containers for Complex Software Stacks
+
+For projects with complex, interdependent dependencies (e.g., GPU libraries + bioinformatics tools + custom compiled code), containers are strongly preferred over environment modules or conda alone. NERSC and other national computing centers have found that containers provide the most reliable path to reproducibility when the software stack has deep dependency trees or requires specific system library versions.
+
+Use containers when:
+- The software requires a specific OS or system library version
+- Multiple tools with conflicting dependencies must coexist
+- The environment must be identical across local, cluster, and cloud
+- You need to archive the exact computational environment for publication
 
 ## Principles
 

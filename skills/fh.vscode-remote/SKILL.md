@@ -12,10 +12,39 @@ VS Code can connect to Fred Hutch rhino/gizmo nodes via Remote SSH for developme
 
 ## Instructions
 
+### Login Node Warning
+
+**Do not run VS Code Remote-SSH on rhino login nodes for extended development sessions.** VS Code's language servers, file watchers, and extensions consume significant CPU and memory. On shared login nodes, this degrades the experience for all users and may result in your processes being killed without warning.
+
+Instead, connect VS Code to a compute node:
+
+```bash
+# 1. SSH into rhino and grab a compute node
+ssh rhino
+grabnode   # request resources, note the node name (e.g., gizmok123)
+
+# 2. In VS Code on your local machine, connect to the compute node directly
+#    Add to ~/.ssh/config:
+Host gizmo-dev
+    HostName gizmok123       # replace with your allocated node
+    ProxyJump rhino          # tunnel through rhino
+    User your_username
+
+# 3. Connect VS Code Remote-SSH to "gizmo-dev"
+```
+
+Alternatively, use the `short` partition with a time limit so forgotten sessions don't occupy resources indefinitely:
+```bash
+srun --partition=short --time=4:00:00 --cpus-per-task=4 --pty bash
+# Note the hostname, then connect VS Code to it
+```
+
+Short-lived, light editing on rhino (quick file edits, git operations) is fine. Sustained development with active language servers and debugging belongs on a compute node.
+
 ### Basic Remote SSH Setup
 
 1. Install VS Code locally with the "Remote - SSH" extension
-2. Connect to `rhino` or a `grabnode` allocation via Remote SSH
+2. Connect to a `grabnode` allocation via Remote SSH (not the rhino login node for sustained work)
 3. Open your project folder on the remote filesystem
 
 ### Python with LMOD Modules

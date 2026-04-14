@@ -81,6 +81,136 @@ process {
 
 Add `publishDir "${params.output_folder}"` to process blocks. If results missing after success, rerun with `-resume`.
 
+### Configuration Profiles for Portability
+
+Nextflow's profile system separates workflow logic from platform-specific settings. A single `nextflow.config` can define profiles for different execution environments, switched with a single flag:
+
+```groovy
+profiles {
+    local {
+        process.executor = 'local'
+        docker.enabled = true
+    }
+
+    slurm {
+        process.executor = 'slurm'
+        singularity.enabled = true
+        singularity.autoMounts = true
+        process.queue = 'campus-new'
+        process.clusterOptions = '--partition=campus-new'
+    }
+
+    slurm_gpu {
+        process.executor = 'slurm'
+        singularity.enabled = true
+        singularity.autoMounts = true
+        process.queue = 'chorus'
+        process.clusterOptions = '--partition=chorus --gres=gpu:1'
+    }
+
+    awsbatch {
+        process.executor = 'awsbatch'
+        process.queue = 'default'
+        aws.region = 'us-west-2'
+        aws.batch.cliPath = '/home/ec2-user/miniconda/bin/aws'
+    }
+}
+```
+
+Usage:
+```bash
+nextflow run pipeline.nf -profile slurm      # Run on Gizmo
+nextflow run pipeline.nf -profile awsbatch    # Burst to AWS
+nextflow run pipeline.nf -profile local       # Test locally
+```
+
+**Gizmo partition mappings:**
+- `campus-new` — default CPU jobs (up to 7 days)
+- `short` — quick jobs under 12 hours
+- `restart-new` — preemptible, for fault-tolerant workflows
+- `chorus` — GPU jobs (L40S nodes)
+
+Never hardcode paths, queue names, or resource requests in workflow logic. Keep them in profiles or params so they can be overridden per platform.
+
+### Container Digest Pinning
+
+Pin containers by SHA256 digest in process directives for reproducibility. Tags are mutable; digests guarantee identical bytes:
+
+```groovy
+process ALIGN {
+    container 'quay.io/biocontainers/bwa:0.7.17--h7132678_9@sha256:abc123...'
+
+    input:
+    path reads
+
+    script:
+    """
+    bwa mem -t ${task.cpus} ref.fa ${reads}
+    """
+}
+```
+
+For nf-core pipelines, containers are already pinned by digest in each release. When writing custom pipelines, always specify containers per process (not globally) and use digests for production runs.
+
+### Pipeline Testing with nf-test
+
+[nf-test](https://nf-co.re/docs/contributing/nf-test) is the standard testing framework for Nextflow pipelines. It supports snapshot testing and dependency analysis:
+
+```bash
+# Install nf-test — project-local via mamba (preferred)
+# Requires project-local .condarc with channel_alias — see fh.python skill
+export CONDARC="$(pwd)/.condarc"
+mamba create --prefix ./envs/nf-test -c bioconda nf-test
+mamba activate ./envs/nf-test
+
+# Alternative: the official installer (installs to ~/.nf-test/ — not project-local)
+# curl -fsSL https://code.askimed.com/install/nf-test | bash
+
+# Initialize in your pipeline directory
+nf-test init
+
+# Generate a test for a process
+nf-test generate process ALIGN
+
+# Run tests
+nf-test test
+```
+
+Example test file (`tests/processes/align.nf.test`):
+```groovy
+nextflow_process {
+    name "Test ALIGN"
+    script "modules/align.nf"
+    process "ALIGN"
+
+    test("Should align reads") {
+        when {
+            process {
+                """
+                input[0] = file("${projectDir}/tests/data/reads.fastq.gz")
+                """
+            }
+        }
+        then {
+            assert process.success
+            assert snapshot(process.out).match()
+        }
+    }
+}
+```
+
+Snapshot testing captures process outputs and compares against stored snapshots, catching unintended changes. nf-test also performs dependency analysis to run only tests affected by code changes.
+
+### The Portability Stack
+
+A truly portable Nextflow pipeline has four layers:
+1. **Workflow definition** — Nextflow DSL2 processes and workflows (the science logic).
+2. **Containerized dependencies** — each process specifies a container with digest-pinned images (Apptainer SIF for HPC, Docker for cloud/local).
+3. **Configuration profiles** — platform-specific settings (executor, queue, resources, container runtime) separated from workflow logic.
+4. **Data access abstraction** — use URIs (`s3://`, `gs://`, local paths) via params rather than hardcoded filesystem paths.
+
+This design lets you develop on a laptop, run on Gizmo, and burst to AWS Batch without changing a single line of pipeline code.
+
 ### Version Pinning
 
 ```bash

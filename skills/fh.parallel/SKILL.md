@@ -111,6 +111,57 @@ For multi-step pipelines with complex dependencies:
 
 A key advantage of workflow managers over hand-rolled array scripts is built-in support for partial reruns and avoiding redundant computation.
 
+### Reproducible Random Number Generation in Parallel Jobs
+
+Calling `set.seed()` or `np.random.seed()` once is not sufficient in parallel contexts because execution order is not guaranteed. Each parallel task needs its own independent, reproducible PRNG stream.
+
+**Python: Use NumPy SeedSequence.spawn()**
+```python
+import numpy as np
+
+# Derive independent streams from a single root seed
+ROOT_SEED = 42
+ss = np.random.SeedSequence(ROOT_SEED)
+child_seeds = ss.spawn(100)  # one per worker/task
+
+# Each worker creates its own generator
+rng = np.random.default_rng(child_seeds[worker_id])
+```
+
+**Python in Slurm array jobs: derive per-task seeds**
+```python
+import numpy as np
+import os
+
+ROOT_SEED = 42
+task_id = int(os.environ["SLURM_ARRAY_TASK_ID"])
+ss = np.random.SeedSequence(ROOT_SEED)
+child_seeds = ss.spawn(int(os.environ.get("SLURM_ARRAY_TASK_COUNT", task_id + 1)))
+rng = np.random.default_rng(child_seeds[task_id])
+```
+
+**R: Use L'Ecuyer-CMRG with the future framework**
+```r
+library(future)
+library(future.apply)
+
+plan(multisession, workers = 4)
+# future.seed = TRUE uses L'Ecuyer-CMRG automatically
+results <- future_lapply(1:100, function(i) {
+  runif(10)
+}, future.seed = TRUE)
+```
+
+**R in Slurm array jobs: derive per-task seed**
+```r
+RNGkind("L'Ecuyer-CMRG")
+root_seed <- 42
+task_id <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
+set.seed(root_seed + task_id)
+```
+
+Always record the root seed, PRNG algorithm, and number of workers in your logs or metadata. This ensures any result can be reproduced exactly by rerunning the same task with the same seed derivation.
+
 ### Key Environment Variables for Parallel Jobs
 
 | Variable | Use |

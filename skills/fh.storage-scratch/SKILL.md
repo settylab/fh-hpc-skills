@@ -129,6 +129,48 @@ cp -r $TMPDIR/results/ /fh/fast/lastname_f/user/$USER/
 
 Deletion is based on object creation date, not last access.
 
+### Local /tmp Staging Pattern (Copy In, Compute, Copy Out)
+
+For I/O-heavy workloads (genome alignment, variant calling, many intermediate files), stage data to node-local storage to avoid hammering the shared filesystem. This is the single most effective I/O optimization on a shared cluster:
+
+```bash
+#!/bin/bash
+#SBATCH --tmp=200G   # Reserve local scratch space
+
+# 1. Copy input to local disk
+cp /fh/fast/lastname_f/data/sample.bam $TMPDIR/
+cp /fh/fast/lastname_f/data/reference.fa* $TMPDIR/
+
+# 2. Run compute entirely on local disk
+cd $TMPDIR
+samtools sort sample.bam -o sorted.bam -@ $SLURM_CPUS_ON_NODE
+samtools index sorted.bam
+
+# 3. Copy results back to durable storage
+cp sorted.bam sorted.bam.bai /fh/fast/lastname_f/results/
+
+# Local files are automatically cleaned up when the job ends
+```
+
+### I/O Anti-Patterns to Avoid
+
+**Many small files.** Writing thousands of small files to a shared filesystem (per-sample CSVs, per-cell pickle files, one-line-per-file logging) overwhelms metadata servers and degrades performance for every user on the cluster. Aggregate outputs into a single file (HDF5, AnnData, combined TSV) instead.
+
+**Tight open/close loops.** Repeatedly opening and closing a file in a loop (appending one line at a time to a log, writing one record per iteration) generates disproportionate metadata traffic. Buffer writes in memory and flush periodically, or write to a single open file handle:
+```python
+# Bad: opens and closes the file 10,000 times
+for i in range(10000):
+    with open("log.txt", "a") as f:
+        f.write(f"iteration {i}\n")
+
+# Good: single open, single close
+with open("log.txt", "w") as f:
+    for i in range(10000):
+        f.write(f"iteration {i}\n")
+```
+
+**Running I/O-heavy jobs directly on /fh/fast/.** The Fast filesystem is optimized for moderate, concurrent access, not for a single job doing millions of small reads/writes. Use `/hpc/temp/` or `$TMPDIR` for active computation and copy results back when done.
+
 ## Instructions
 
 When helping users with temporary storage:
@@ -139,6 +181,7 @@ When helping users with temporary storage:
 4. Recommend Working for longer-lived working copies where a primary exists elsewhere
 5. Always remind users to copy results to durable storage (Fast or Economy/S3) when done
 6. Suggest workflow managers (Nextflow, Snakemake, Cromwell) for automated staging
+7. Flag I/O anti-patterns (many small files, tight open/close loops) and suggest alternatives
 
 ## Principles
 
