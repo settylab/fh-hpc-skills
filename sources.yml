@@ -1,0 +1,192 @@
+# SciComp Wiki URL Manifest
+# All pages to ingest from https://sciwiki.fredhutch.org
+# Status: pending | locked | done
+
+base_url: https://sciwiki.fredhutch.org
+
+sections:
+  access:
+    title: "Access and Credentials"
+    pages:
+      - path: /scicomputing/access_overview/
+        status: pending
+      - path: /scicomputing/access_credentials/
+        status: pending
+      - path: /scicomputing/access_methods/
+        status: pending
+      - path: /scicomputing/access_permissions/
+        status: pending
+      - path: /scicomputing/access_aws/
+        status: pending
+
+  storage:
+    title: "Data Storage"
+    pages:
+      - path: /scicomputing/store_overview/
+        status: pending
+      - path: /scicomputing/store_databases/
+        status: pending
+      - path: /scicomputing/store_posix/
+        status: pending
+      - path: /scicomputing/store_task/
+        status: pending
+      - path: /scicomputing/store_objectstore/
+        status: pending
+      - path: /scicomputing/store_collaboration/
+        status: pending
+
+  software:
+    title: "Software"
+    pages:
+      - path: /scicomputing/software_overview/
+        status: pending
+      - path: /scicomputing/software_R/
+        status: pending
+      - path: /scicomputing/software_python/
+        status: pending
+      - path: /scicomputing/software_linux101/
+        status: pending
+      - path: /scicomputing/software_running/
+        status: pending
+      - path: /scicomputing/software_managecode/
+        status: pending
+      - path: /scicomputing/software_examples/
+        status: pending
+
+  compute:
+    title: "Large Scale Computing"
+    pages:
+      - path: /scicomputing/compute_overview/
+        status: pending
+      - path: /scicomputing/compute_quickstart/
+        status: pending
+      - path: /scicomputing/compute_platforms/
+        status: pending
+      - path: /scicomputing/compute_environments/
+        status: pending
+      - path: /scicomputing/compute_scientificSoftware/
+        status: pending
+      - path: /scicomputing/compute_jobs/
+        status: pending
+      - path: /scicomputing/compute_parallel/
+        status: pending
+      - path: /scicomputing/compute_cloud/
+        status: pending
+      - path: /scicomputing/compute_gpu/
+        status: pending
+
+  grants:
+    title: "Grant Writers"
+    pages:
+      - path: /scicomputing/compute_grants/
+        status: pending
+
+  compdemos:
+    title: "Resource Library (Demos & Tutorials)"
+    pages:
+      - path: /compdemos/howtoRhino/
+        status: pending
+      - path: /compdemos/grabnode/
+        status: pending
+      - path: /compdemos/gizmo_partition_index/
+        status: pending
+      - path: /compdemos/gizmo_short_partition/
+        status: pending
+      - path: /compdemos/login-node-resource-management/
+        status: pending
+      - path: /compdemos/Apptainer/
+        status: pending
+      - path: /compdemos/Docker/
+        status: pending
+      - path: /compdemos/nextflow/
+        status: pending
+      - path: /compdemos/Cromwell/
+        status: pending
+      - path: /compdemos/aws-s3/
+        status: pending
+      - path: /compdemos/aws-batch/
+        status: pending
+      - path: /compdemos/aws-credits/
+        status: pending
+      - path: /compdemos/python_virtual_environments/
+        status: pending
+      - path: /compdemos/python_logging/
+        status: pending
+      - path: /compdemos/R_tips_tricks/
+        status: pending
+      - path: /compdemos/rslurm_intro/
+        status: pending
+      - path: /compdemos/rslurm_example/
+        status: pending
+      - path: /compdemos/shiny/
+        status: pending
+      - path: /compdemos/git_tips/
+        status: pending
+      - path: /compdemos/managing-module-versions/
+        status: pending
+      - path: /compdemos/VS-Code_lmod/
+        status: pending
+      - path: /compdemos/vscode_markdown_howto/
+        status: pending
+      - path: /compdemos/mydb/
+        status: pending
+      - path: /compdemos/store_job_local/
+        status: pending
+      - path: /compdemos/snapshots/
+        status: pending
+      - path: /compdemos/motuz/
+        status: pending
+      - path: /compdemos/globus-personal/
+        status: pending
+      - path: /compdemos/sharing-data-presigned-url/
+        status: pending
+      - path: /compdemos/ssh_host_key_management/
+        status: pending
+      - path: /compdemos/AWSCLI_WSL/
+        status: pending
+      - path: /compdemos/Mountain-CyberDuck/
+        status: pending
+      - path: /compdemos/aspera-change-destination/
+        status: pending
+      - path: /compdemos/aspera-on-nx/
+        status: pending
+      - path: /compdemos/github_pages-FHtheme/
+        status: pending
+      - path: /compdemos/GDC_Data_Download/
+        status: pending
+      - path: /compdemos/gdc-client-hints/
+        status: pending
+      - path: /compdemos/ingest-Large-Data/
+        status: pending
+      - path: /compdemos/matlab/
+        status: pending
+      - path: /compdemos/maxquant/
+        status: pending
+      - path: /compdemos/microbiome_tools/
+        status: pending
+      - path: /compdemos/onboard/
+        status: pending
+      - path: /compdemos/plyranges-workshop/
+        status: pending
+      - path: /compdemos/r-2018b-matrix-errors/
+        status: pending
+      - path: /compdemos/ucsc-track-s3/
+        status: pending
+      - path: /compdemos/alphafold3/
+        status: pending
+
+  pathways:
+    title: "Pathways"
+    pages:
+      - path: /pathways/path-grab/
+        status: pending
+      - path: /pathways/path-interactive/
+        status: pending
+      - path: /pathways/path-batch-computing/
+        status: pending
+      - path: /pathways/path-mydb-mariadb/
+        status: pending
+      - path: /pathways/path-cbio-fh-instance/
+        status: pending
+      - path: /pathways/path-migrating-data-from-fast-to-cloud/
+        status: pending
