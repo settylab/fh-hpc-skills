@@ -69,19 +69,23 @@ Every skill upholds these values:
 Cloning into `~/.claude/` ensures skills are accessible inside the [agent_sandbox](https://github.com/katosh/agent_sandbox), which mounts `~/.claude` as writable by default. No extra sandbox configuration needed.
 
 ```bash
-git clone https://github.com/settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
-
-# Symlink each skill into your Claude Code skills directory
+git clone git@github.com:settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
+mkdir -p ~/.claude/skills
 for skill in ~/.claude/fh-hpc-skills/skills/fh.*/; do
-  name=$(basename "$skill")
-  ln -sf "$skill" ~/.claude/skills/"$name"
+  ln -sf "$skill" ~/.claude/skills/"$(basename "$skill")"
 done
+```
+
+If you don't have SSH keys configured for GitHub, use HTTPS instead:
+
+```bash
+git clone https://github.com/settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
 ```
 
 ### Manual install (single skill)
 
 ```bash
-# Copy just the skills you want
+mkdir -p ~/.claude/skills
 cp -r ~/.claude/fh-hpc-skills/skills/fh.slurm ~/.claude/skills/
 ```
 
