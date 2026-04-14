@@ -64,14 +64,15 @@ Every skill upholds these values:
 
 ## Installation
 
-### Quick install (symlink into Claude Code)
+### Quick install (clone into ~/.claude)
+
+Cloning into `~/.claude/` ensures skills are accessible inside the [agent_sandbox](https://github.com/katosh/agent_sandbox), which mounts `~/.claude` as writable by default. No extra sandbox configuration needed.
 
 ```bash
-# Clone or copy this repo
-git clone <repo-url> ~/fh-hpc-skills
+git clone https://github.com/settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
 
 # Symlink each skill into your Claude Code skills directory
-for skill in ~/fh-hpc-skills/skills/fh.*/; do
+for skill in ~/.claude/fh-hpc-skills/skills/fh.*/; do
   name=$(basename "$skill")
   ln -sf "$skill" ~/.claude/skills/"$name"
 done
@@ -81,7 +82,7 @@ done
 
 ```bash
 # Copy just the skills you want
-cp -r ~/fh-hpc-skills/skills/fh.slurm ~/.claude/skills/
+cp -r ~/.claude/fh-hpc-skills/skills/fh.slurm ~/.claude/skills/
 ```
 
 ### Verify installation
@@ -147,7 +148,7 @@ To add a new skill:
 
 ## Known limitations
 
-Some aspects cannot be verified from within the agent sandbox and are documented in `shared/SANDBOX-LIMITATIONS.md`. These include grabnode interactive prompts, module load behavior, job submission, and Open OnDemand.
+A few items could not be verified from the CLI and remain based on wiki documentation: the Open OnDemand URL and available apps, current SciComp Slack channel names, SMB/NFS desktop mount paths, and the AWS SSO browser flow.
 
 ## License
 
