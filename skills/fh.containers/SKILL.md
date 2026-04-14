@@ -90,9 +90,10 @@ apptainer pull docker://myuser/myimage:v1
 - Prefer Lmod modules when available (lower overhead than containers)
 - Use containers for software not available as modules or when exact reproducibility is required
 - Store SIF files in your lab's fast directory, not in your home directory (they can be large)
-- Tag container images with versions for reproducibility
+- Tag container images with versions for reproducibility (never use `:latest` in production scripts)
 - Respect shared infrastructure and other users
 - Follow Fred Hutch data security policies
+- Verify bind mounts and paths before batch submission. A missing `--bind` causes silent failures where the container runs but cannot see input data, producing empty or misleading outputs.
 
 ## References
 

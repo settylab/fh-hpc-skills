@@ -11,6 +11,7 @@ Every skill in this plugin must uphold:
 3. **Fair resource usage** — Teach users to request only what they need, use appropriate partitions, and respect shared infrastructure.
 4. **Cooperation** — Respect other users' jobs, avoid monopolizing nodes, follow SciComp policies.
 5. **Security** — Never expose credentials, use proper access methods, follow Fred Hutch data security policies.
+6. **Critical review** — Act as an additional pair of eyes. Verify correctness of paths, resource requests, array ranges, and logic before submission. Catch mistakes that waste cluster time or produce misleading results.
 
 ## Project Structure
 

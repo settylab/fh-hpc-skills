@@ -48,6 +48,16 @@ Useful array syntax:
 - `--array=1-100%10` -- max 10 running simultaneously
 - `--array=1,5,9,13` -- specific task IDs
 
+**Test first, then scale.** If you are already on a compute node (`hostname` returns something other than `rhino*`), test your command directly before submitting anything. Otherwise, run a small subset (`--array=1-3`) and verify outputs before launching the full array. This catches path errors, missing dependencies, and unexpected resource usage early.
+
+**Make arrays resumable.** Structure outputs so each task writes to a predictable path and checks whether it already succeeded. This lets you rerun the full array after fixing a bug without repeating completed work, and makes it trivial to resubmit only the failed indices:
+```bash
+# Find failed tasks from a completed array job
+sacct -j <arrayJobID> --format=JobID%20,State | grep FAILED
+# Resubmit only those
+sbatch --array=7,23,51 myjob.sh
+```
+
 ### Multi-threaded Jobs
 
 For applications that use multiple CPU cores on a single node:
@@ -94,10 +104,12 @@ srun myprogram
 
 For multi-step pipelines with complex dependencies:
 
-- **Nextflow**: Pipeline orchestration with built-in Slurm integration. Fred Hutch maintains a Nextflow Catalog.
-- **WDL (Workflow Description Language)**: Supported via Cromwell/PROOF. Fred Hutch maintains a WILDS WDL Library.
-- **GNU make**: Simple dependency-based parallelism.
+- **Nextflow**: Pipeline orchestration with built-in Slurm integration. Fred Hutch maintains a Nextflow Catalog. Nextflow natively supports `-resume`, which skips completed steps on rerun.
+- **WDL (Workflow Description Language)**: Supported via Cromwell/PROOF. Fred Hutch maintains a WILDS WDL Library. Cromwell caches completed tasks by default.
+- **GNU make**: Simple dependency-based parallelism. Skips targets whose outputs are newer than their inputs.
 - **Rslurm**: R package for submitting Slurm jobs from R scripts.
+
+A key advantage of workflow managers over hand-rolled array scripts is built-in support for partial reruns and avoiding redundant computation.
 
 ### Key Environment Variables for Parallel Jobs
 
@@ -117,6 +129,7 @@ For multi-step pipelines with complex dependencies:
 - Respect shared infrastructure and other users
 - Use versioned environments for reproducibility
 - Follow Fred Hutch data security policies
+- Review scripts critically before large-scale submission. Double-check array ranges, output paths, and resource requests -- mistakes multiply across hundreds of tasks.
 
 ## References
 

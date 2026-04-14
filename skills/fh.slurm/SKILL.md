@@ -107,18 +107,62 @@ Run the same script many times with different inputs:
 #SBATCH --array=1-100
 #SBATCH --cpus-per-task=1
 #SBATCH --time=4:00:00
+#SBATCH --output=slurm-%A_%a.out
 
 # $SLURM_ARRAY_TASK_ID gives the current index (1 through 100)
 python process.py --sample $SLURM_ARRAY_TASK_ID
 ```
 
+**Test before scaling.** Always run a small subset first to catch errors early. If you are already on a compute node (`hostname` returns something other than `rhino*`), you can test commands directly without submitting a job. Otherwise:
+```bash
+# Test with 3 tasks before submitting the full array
+sbatch --array=1-3 myjob.sh
+# Check outputs, then submit the rest
+sbatch --array=4-100 myjob.sh
+```
+
+**Skip completed work.** When rerunning after partial failure or code changes that only affect a subset, avoid repeating work that already succeeded:
+```bash
+#!/bin/bash
+#SBATCH --array=1-100
+
+OUTFILE="results/sample_${SLURM_ARRAY_TASK_ID}.csv"
+if [ -f "$OUTFILE" ]; then
+    echo "Output exists, skipping task $SLURM_ARRAY_TASK_ID"
+    exit 0
+fi
+python process.py --sample $SLURM_ARRAY_TASK_ID --output "$OUTFILE"
+```
+
+Alternatively, resubmit only the failed tasks:
+```bash
+# Find which tasks failed from sacct
+sacct -j <arrayJobID> --format=JobID,State | grep FAILED
+# Resubmit only those (e.g., tasks 7,23,51)
+sbatch --array=7,23,51 myjob.sh
+```
+
 ### Preemptible (Restart) Jobs
 
-Access all idle cluster CPUs with no limits, but jobs can be killed without notice:
+Access all idle cluster CPUs with no limits, but jobs can be killed and requeued without notice:
 ```bash
 sbatch --partition=restart-new --qos=restart myjob.sh
 ```
-Only use this for checkpointable or easily re-runnable workloads.
+Only use this for workloads that are either idempotent (safe to rerun from scratch) or checkpointable. For long-running computations, write periodic checkpoints so the job can resume where it left off:
+```bash
+#!/bin/bash
+#SBATCH --partition=restart-new
+#SBATCH --qos=restart
+#SBATCH --signal=B:USR1@120  # Signal 120s before kill
+
+CHECKPOINT="checkpoint.pt"
+
+# Handle preemption signal
+trap 'echo "Preempted, saving..."; python save_checkpoint.py; exit 0' USR1
+
+# Resume from checkpoint if it exists
+python train.py --checkpoint "$CHECKPOINT"
+```
 
 ### Job Output
 
@@ -165,6 +209,7 @@ For multi-step pipelines, Fred Hutch recommends Nextflow or WDL (Cromwell) rathe
 - Always initialize the module system in bash scripts: `source /app/lmod/lmod/init/profile`
 - Check job output files for errors after completion.
 - Convert repeated interactive commands into batch scripts.
+- Review job scripts critically before submission. Verify paths, resource requests, and logic are correct -- a mistyped output path or wrong array range can waste hours of cluster time and produce misleading results.
 
 ## References
 

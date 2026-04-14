@@ -46,7 +46,7 @@ sbatch -p short -t 4:00:00 myjob.sh
 sbatch -t 7-00:00:00 myjob.sh
 ```
 
-**"I need massive resources and can checkpoint"** --> Use `restart-new`:
+**"I need massive resources and can checkpoint"** --> Use `restart-new`. Jobs here can be killed and requeued at any time, so your code must be idempotent or write checkpoints:
 ```bash
 sbatch --partition=restart-new --qos=restart myjob.sh
 ```
@@ -91,6 +91,7 @@ Use `/loc/scratch/$SLURM_JOB_ID/` for temporary I/O-intensive work. Clean up aft
 - Respect shared infrastructure and other users
 - Use versioned environments for reproducibility
 - Follow Fred Hutch data security policies
+- Verify partition choice and resource limits before submitting. Mismatched wall times or partition constraints are a common source of wasted queue time and failed jobs.
 
 ## References
 

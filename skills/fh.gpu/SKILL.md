@@ -92,6 +92,23 @@ Harmony nodes run a different OS and use AMD EPYC CPUs. You MUST:
 
 Only request multiple GPUs if your code actually supports multi-GPU execution (e.g., PyTorch DistributedDataParallel, TensorFlow MirroredStrategy). Most single-GPU code silently ignores extra GPUs, wasting resources.
 
+### Checkpointing GPU Jobs
+
+Long training runs should save periodic checkpoints so they can resume after interruption (preemption, node failure, time limit). This is especially important on the `restart-new` partition where jobs can be killed at any time:
+
+```python
+# PyTorch example: save every N epochs
+if epoch % save_every == 0:
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss,
+    }, f'checkpoints/epoch_{epoch}.pt')
+```
+
+On job start, check for existing checkpoints and resume from the latest one instead of restarting from scratch.
+
 ## Principles
 
 - Request only the GPUs you need. Most training jobs need 1 GPU.
@@ -100,6 +117,7 @@ Only request multiple GPUs if your code actually supports multi-GPU execution (e
 - Respect shared infrastructure and other users.
 - Use versioned environments for reproducibility.
 - Follow Fred Hutch data security policies.
+- Review GPU scripts critically before submission. Verify CUDA module versions match your framework requirements, and confirm that `module purge` is present for chorus jobs. A wrong module combination can silently produce incorrect results or waste GPU hours on startup failures.
 
 ## References
 
