@@ -6,7 +6,7 @@ A Claude Code skill plugin for the Fred Hutchinson Cancer Center HPC cluster (Gi
 
 Claude Code loads skills based on what you're doing. Ask about submitting a Slurm job, and it loads `fh.slurm`. Ask about GPU availability, and it loads `fh.gpu` and `fh.monitoring`. Each skill is a focused document covering one topic with commands, examples, pitfalls, and references.
 
-29 skills cover the full surface area of the Fred Hutch HPC:
+33 skills cover the full surface area of the Fred Hutch HPC:
 
 | Skill | Description |
 |-------|-------------|
@@ -15,9 +15,10 @@ Claude Code loads skills based on what you're doing. Ask about submitting a Slur
 | `fh.aws-access` | AWS account access, SSO login, S3, Batch, cost management |
 | `fh.cloud` | AWS cloud computing (Batch, WDL/PROOF, Nextflow, CloudShell) |
 | `fh.cluster-overview` | Quick reference: partitions, node hardware, GPU inventory, key paths |
-| `fh.containers` | Apptainer/Docker containers on Gizmo |
+| `fh.containers` | Apptainer/Docker containers, digest pinning, multi-stage builds |
 | `fh.credentials` | HutchNet ID, Slurm access, GitHub org membership, MFA |
-| `fh.cromwell` | Cromwell/WDL workflow execution |
+| `fh.cromwell` | Cromwell/WDL workflow execution, Google Batch API, clinical genomics |
+| `fh.data-management` | FAIR principles, NIH DMSP, data formats, versioning, metadata standards |
 | `fh.databases` | MyDB (Postgres, MariaDB, MongoDB, Neo4j), REDCap, MS SQL |
 | `fh.data-transfer` | Motuz, Globus, AWS CLI, Aspera, migration to Economy Cloud |
 | `fh.github` | Fred Hutch GitHub org, security policies, version control |
@@ -25,30 +26,60 @@ Claude Code loads skills based on what you're doing. Ask about submitting a Slur
 | `fh.grants` | HPC descriptions and citations for grant applications |
 | `fh.interactive-sessions` | grabnode, srun, resource flags, session management |
 | `fh.linux-basics` | Essential shell commands for HPC users |
-| `fh.modules` | Lmod environment modules: loading, searching, managing |
+| `fh.modules` | Lmod modules: spider vs avail, hierarchies, when to use alternatives |
 | `fh.monitoring` | Grafana/Prometheus queries, Slurm CLI monitoring, dashboards |
-| `fh.nextflow` | Nextflow workflows on Gizmo and AWS Batch |
+| `fh.nextflow` | Nextflow on Gizmo/AWS, profiles, nf-test, container pinning |
 | `fh.onboarding` | New user checklist for Fred Hutch computational resources |
-| `fh.parallel` | Job arrays, threading, MPI, workflow managers |
-| `fh.partitions` | Partition specs, node hardware, decision guide |
-| `fh.python` | Python modules, virtual envs, conda, Jupyter |
-| `fh.r` | R/RStudio modules, packages, Bioconductor, Jupyter R kernel |
-| `fh.slurm` | sbatch, srun, scancel, squeue, sacct, job arrays |
+| `fh.parallel` | Job arrays, threading, MPI, reproducible parallel RNG |
+| `fh.partitions` | Partition specs, decision guide, checkpointing, fair-share |
+| `fh.python` | uv, Lmod modules, mamba fallback, Jupyter, dependency management |
+| `fh.r` | R/RStudio, renv, Bioconductor, Jupyter R kernel |
+| `fh.reproducibility` | Environment pinning, container digests, parallel RNG, agent code risks |
+| `fh.slurm` | sbatch, sacct profiling, arrays, dependencies, backfill scheduling |
 | `fh.storage` | Overview of all storage tiers (home, fast, scratch, economy) |
 | `fh.storage-fast` | /fh/fast/ POSIX storage: paths, quotas, collaboration |
 | `fh.storage-s3` | Economy/S3 storage: CLI, boto3, R, sharing, versioning |
-| `fh.storage-scratch` | /hpc/temp/, job-local scratch, tmpfs, performance comparison |
-| `fh.vscode-remote` | VS Code remote development with Lmod integration |
+| `fh.storage-scratch` | /hpc/temp/, local staging patterns, I/O anti-patterns |
+| `fh.testing` | pytest, testthat, nf-test, snapshot testing, CI, practical priorities |
+| `fh.vscode-remote` | VS Code remote on compute nodes, Lmod integration |
+| `fh.workflows-overview` | Nextflow vs Snakemake vs WDL, portability stack, cloud bursting |
 
 ## Sources
 
 Skill content is distilled from:
+
+**Fred Hutch infrastructure:**
 
 - **[SciComp Wiki](https://sciwiki.fredhutch.org/scicomputing/comp_index/)** — the official Fred Hutch Scientific Computing documentation, covering access, storage, software, and large-scale computing
 - **[SciComp Resource Library](https://sciwiki.fredhutch.org/compdemos/)** — 45+ tutorials and how-to guides
 - **[SciComp Pathways](https://sciwiki.fredhutch.org/pathways/)** — step-by-step workflows for common tasks
 - **Live cluster probing** — partition specs, module versions, mount points, and environment variables verified directly on Gizmo
 - **[Grafana](https://grafana.fredhutch.org/)** — dashboard catalog and Prometheus query patterns for cluster monitoring
+
+**HPC best practices:**
+
+- **[NERSC](https://docs.nersc.gov/jobs/best-practices/)**, **[TACC](https://docs.tacc.utexas.edu/basics/conduct/)**, **[Sigma2](https://documentation.sigma2.no/)**, **[Yale YCRC](https://docs.ycrc.yale.edu/)**, **[Harvard FASRC](https://docs.rc.fas.harvard.edu/)** — job scheduling, resource profiling, I/O patterns, fair-share
+- **[Slurm documentation](https://slurm.schedmd.com/documentation.html)** — fair tree algorithm, multifactor priority, job arrays
+- **[LUMI Lmod tutorials](https://lumi-supercomputer.github.io/easybuild-tutorial/)** — hierarchical module systems
+
+**Reproducibility and scientific rigor:**
+
+- Ziemann, Poulain, Bora (2023). "[Five pillars of computational reproducibility](https://pmc.ncbi.nlm.nih.gov/articles/PMC10591307/)." *Briefings in Bioinformatics*
+- Vangala et al. (2026). "[AI-Generated Code Is Not Reproducible (Yet)](https://arxiv.org/abs/2512.22387)." *arXiv*
+- Edmonds et al. (2022). "[Software testing in microbial bioinformatics](https://pmc.ncbi.nlm.nih.gov/articles/PMC9176277/)." *Microbial Genomics*
+- Sandve et al. (2013). "[Ten Simple Rules for Reproducible Computational Research](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1003285)." *PLOS Comp Bio*
+
+**Workflows and portability:**
+
+- "[Empowering bioinformatics communities with Nextflow and nf-core](https://pmc.ncbi.nlm.nih.gov/articles/PMC12309086/)." *Genome Biology* (2025)
+- "[nf-test: Improving pipeline reliability](https://academic.oup.com/gigascience/article/doi/10.1093/gigascience/giaf130/8297140)." *GigaScience* (2025)
+- "[Applying FAIR Principles to Computational Workflows](https://www.nature.com/articles/s41597-025-04451-9)." *Nature Scientific Data* (2025)
+
+**Data management:**
+
+- **[NIH Data Management and Sharing Policy](https://sharing.nih.gov/data-management-and-sharing-policy)** — DMSP requirements
+- **[FAIR Principles](https://www.go-fair.org/fair-principles/)** — Findable, Accessible, Interoperable, Reusable
+- **[Apache Parquet](https://parquet.apache.org/)**, **[Zarr](https://zarr.dev/)**, **[TileDB-SOMA](https://github.com/single-cell-data/TileDB-SOMA)** — data format recommendations
 
 Where the wiki and the live cluster disagree, we trust the cluster. Deviations are documented in `shared/reports/validation-agent.md`.
 
@@ -130,7 +161,7 @@ You can also invoke skills directly with slash commands if configured:
 ## Project structure
 
 ```
-skills/              # The deliverable: 29 Claude Code skills
+skills/              # The deliverable: 33 Claude Code skills
 docs/wiki-raw/       # Raw fetched wiki content
 docs/wiki-distilled/ # Structured knowledge extracted from wiki + live cluster
 shared/reports/      # Agent work reports and validation results
