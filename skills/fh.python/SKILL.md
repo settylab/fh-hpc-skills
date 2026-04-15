@@ -163,6 +163,68 @@ Email scicomp@fredhutch.org or file an issue on the `easybuild-life-sciences` Gi
 
 Browse available Python modules at: https://fredhutch.github.io/easybuild-life-sciences/python/
 
+### Python in Slurm Jobs
+
+Slurm jobs run on Gizmo compute nodes, which may have a different OS/glibc version than login nodes. Python that works on Rhino can fail on compute nodes. Choose the right interpreter:
+
+#### Interpreter Selection
+
+| Interpreter | Portability | Notes |
+|---|---|---|
+| **uv-managed** (recommended) | Works everywhere | Standalone build, no glibc dependency issues |
+| **Lmod module** | Works on compute nodes | Must `module load` in sbatch script — never call the binary by direct path |
+| **Other Python** (Homebrew, pyenv, system) | Unreliable | May be linked against a glibc newer than compute nodes provide |
+
+**uv-managed Python** is the most portable option. Install a standalone Python into the project directory so it works on any node:
+
+```bash
+# In your project directory
+export UV_PYTHON_INSTALL_DIR="$(pwd)/.python"
+uv python install 3.12
+uv venv --python 3.12
+uv sync
+```
+
+**Module Python** works on compute nodes but MUST be loaded via `module load`, not by calling `/app/software/Python/.../bin/python3` directly. The module sets `LD_LIBRARY_PATH`, `PYTHONPATH`, and toolchain variables that the binary depends on.
+
+**Other Python interpreters** (Homebrew/Linuxbrew, pyenv-built, manually compiled, etc.) may be linked against a glibc version newer than what compute nodes provide. The symptom is `error while loading shared libraries` when the job runs, sometimes referencing an unexpected Python version — the root cause is the glibc mismatch, not the version shown in the error. If you hit this, switch to uv-managed or module Python.
+
+#### C Extension Conflicts with Lmod Libraries
+
+When pip packages with C extensions (`python-igraph`, `h5py`, `netCDF4`, etc.) are installed alongside Lmod modules that provide the same C libraries, symbol conflicts cause `undefined symbol` or segfaults at import time. Solutions:
+
+- **Pin versions that bundle their own C library.** Example: `igraph==0.11.8` bundles libigraph; `python-igraph==1.0.0` dynamically links to the system's `libigraph.so` and conflicts with the Lmod-provided version.
+- **Purge conflicting modules** before running the job (`ml purge` then load only what you need).
+- **Use uv-managed Python** to avoid Lmod entirely — no module means no conflicting shared libraries.
+
+#### Example Sbatch Script
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=analysis
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+
+# Option A: uv-managed (recommended)
+export UV_PYTHON_INSTALL_DIR="/fh/fast/pi_name/user/myuser/myproject/.python"
+export UV_CACHE_DIR="/hpc/temp/$USER/uv-cache"   # avoid slow NFS cache scans
+cd /fh/fast/pi_name/user/myuser/myproject
+uv run python my_analysis.py
+
+# Option B: Lmod module
+# ml purge
+# ml fhPython/3.11.3-foss-2023a
+# source /fh/fast/pi_name/user/myuser/envs/myproject/bin/activate
+# python my_analysis.py
+```
+
+Key points:
+- **Activate the venv in the script body**, not in `#SBATCH` directives (which are just comments to the shell).
+- **Use absolute paths** for the venv and project directory. `$SLURM_SUBMIT_DIR` is the directory where `sbatch` was called, which may not be the project root.
+- **Set `UV_CACHE_DIR`** to scratch (`/hpc/temp/$USER/...`) when using uv. The default cache location on NFS can cause slow startup as uv scans thousands of cached wheels.
+- **Do not rely on `~/.bashrc`** being sourced — Slurm jobs use non-interactive shells by default.
+
 ## Principles
 
 - Use uv for Python dependency management by default; fall back to mamba only for mixed-language projects
