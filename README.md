@@ -6,7 +6,7 @@ A Claude Code skill plugin for the Fred Hutchinson Cancer Center HPC cluster (Gi
 
 Claude Code loads skills based on what you're doing. Ask about submitting a Slurm job, and it loads `fh.slurm`. Ask about GPU availability, and it loads `fh.gpu` and `fh.monitoring`. Each skill is a focused document covering one topic with commands, examples, pitfalls, and references.
 
-33 skills cover the full surface area of the Fred Hutch HPC:
+34 skills cover the full surface area of the Fred Hutch HPC, plus lab-specific conventions under the `setty.*` namespace:
 
 | Skill | Description |
 |-------|-------------|
@@ -43,6 +43,7 @@ Claude Code loads skills based on what you're doing. Ask about submitting a Slur
 | `fh.testing` | pytest, testthat, nf-test, snapshot testing, CI, practical priorities |
 | `fh.vscode-remote` | VS Code remote on compute nodes, Lmod integration |
 | `fh.workflows-overview` | Nextflow vs Snakemake vs WDL, portability stack, cloud bursting |
+| `setty.plots` | Setty Lab plot aesthetics: matplotlib/plotnine styling, Helvetica/Arial, Paired palette, Illustrator handoff |
 
 ## Sources
 
@@ -55,6 +56,10 @@ Skill content is distilled from:
 - **[SciComp Pathways](https://sciwiki.fredhutch.org/pathways/)** — step-by-step workflows for common tasks
 - **Live cluster probing** — partition specs, module versions, mount points, and environment variables verified directly on Gizmo
 - **[Grafana](https://grafana.fredhutch.org/)** — dashboard catalog and Prometheus query patterns for cluster monitoring
+
+**Setty Lab conventions:**
+
+- **[Setty Lab Wiki](https://github.com/settylab/Lab-wiki/wiki)** — lab-specific guidelines on compute resources, plot aesthetics, and research practices (source for the `setty.*` namespace)
 
 **HPC best practices:**
 
