@@ -10,11 +10,9 @@ TRIGGER when: user asks about scratch storage, temp storage, /hpc/temp, temporar
 
 Fred Hutch provides several temporary/task-optimized storage options for intermediate computational data. These are NOT backed up and should NEVER hold the only copy of important data.
 
-**CRITICAL: Do not store the primary or only copy of any dataset in temp or scratch storage. Always ensure a durable copy exists in Fast or Economy/S3.**
+**CRITICAL: Do not store the primary or only copy of any dataset in temp storage. Always ensure a durable copy exists in Fast or Economy/S3.**
 
-## Deprecation Notice
-
-**`/fh/scratch/` is deprecated and no longer mounted.** The environment variables `$SCRATCH`, `$DELETE10`, `$DELETE30`, `$DELETE90` still exist in shell profiles but point to nonexistent paths. Do NOT use them. Use `/hpc/temp/` instead.
+Note: the old network-scratch path `/fh/scratch/delete{10,30,90}/` has been fully decommissioned. `/hpc/temp/` is the sole replacement.
 
 ## Storage Options
 
@@ -22,27 +20,27 @@ Fred Hutch provides several temporary/task-optimized storage options for interme
 
 | Property | Value |
 |----------|-------|
-| Path | `/hpc/temp/<pi_lastname_fi>/<username>/` |
+| Path | `/hpc/temp/<pi_lastname_f>/<username>/` (Setty Lab: `/hpc/temp/setty_m/$USER/`) |
 | NFS server | `scratch.chromium.fhcrc.org` (140.107.223.133) |
-| Protocol | NFSv4.1, 1MB read/write block size, hard mount |
+| Protocol | NFSv4.1, 1 MiB read/write block size, hard mount |
 | Available on | rhino, gizmo nodes, managed workstations |
 | Backup | None (snapshots every 30 minutes, ~1hr recovery window) |
-| Purge | Files deleted 30 days after creation date |
+| Purge | **30 days from file creation date.** `touch`/access does NOT reset the timer. |
 | Cost | Free |
-| Performance | Network-attached; good throughput for sequential I/O, higher latency than local disk |
+| Performance | Network-attached. Higher sequential read throughput than `/fh/fast/` (larger NFS block), but slower metadata ops — see the benchmark in `docs/benchmarks/` |
 
 ```bash
 # Create a working directory in temp
-mkdir -p /hpc/temp/$USER/my_analysis
+mkdir -p /hpc/temp/setty_m/$USER/my_analysis
 
 # Copy input data
-cp /fh/fast/lastname_f/user/$USER/input.bam /hpc/temp/$USER/my_analysis/
+cp /fh/fast/setty_m/user/$USER/input.bam /hpc/temp/setty_m/$USER/my_analysis/
 
 # Run analysis
 # ... your pipeline ...
 
 # Copy results back to durable storage
-cp /hpc/temp/$USER/my_analysis/results.tsv /fh/fast/lastname_f/user/$USER/
+cp /hpc/temp/setty_m/$USER/my_analysis/results.tsv /fh/fast/setty_m/user/$USER/
 ```
 
 ### Working (`/fh/working`)
@@ -111,13 +109,33 @@ cp -r $TMPDIR/results/ /fh/fast/lastname_f/user/$USER/
 
 ## Performance Comparison
 
-| Storage | Latency | Throughput | Shared | Persists | Capacity |
-|---------|---------|------------|--------|----------|----------|
+Tier-level summary (latency/throughput class):
+
+| Storage | Latency | Throughput class | Shared | Persists | Capacity |
+|---------|---------|------------------|--------|----------|----------|
 | `/dev/shm` (tmpfs) | ~ns | Memory speed | No (node-local) | Job only | Your `--mem` |
 | `$TMPDIR` / `$SCRATCH_LOCAL` | ~us | SSD/NVMe | No (node-local) | Job only | Node disk |
-| `/hpc/temp` | ~ms | NFS4 1MB blocks | Yes (cluster-wide) | 30 days | Large |
-| `/fh/working` | ~ms | NFS | Yes (cluster-wide) | No purge | 20TB |
-| `/fh/fast` | ~ms | NFS 128K/512K | Yes (cluster-wide) | Persistent | PI quota |
+| `/hpc/temp` | ~ms | NFSv4.1, 1 MiB blocks | Yes (cluster-wide) | 30 days | Large |
+| `/fh/working` | ~ms | NFSv3, 128 KiB / 512 KiB | Yes (cluster-wide) | No purge | 20 TB |
+| `/fh/fast` | ~ms | NFSv3, 128 KiB / 512 KiB | Yes (cluster-wide) | Persistent | PI quota |
+
+Measured on a rhino node (median of 3 reps; full script + caveats: `docs/benchmarks/storage_bench.py`):
+
+| Metric | `/fh/fast` | `/hpc/temp` | `/fh/working` | `/tmp` (NVMe) | `/dev/shm` (tmpfs) |
+|---|---|---|---|---|---|
+| Sequential write (MiB/s) | 216 | 212 | 245 | 2174 | **2320** |
+| Sequential read (MiB/s)  | 395 | 556 | 375 | 1864 | **4408** |
+| Metadata (s / 1000 files) | 5.2 | 11.7 | 5.1 | **0.07** | **0.06** |
+| Random 4 KiB reads (ops/s) | 2433 | 2025 | 1873 | 7809 | **256 395** |
+
+**Takeaways:**
+
+- `/dev/shm` beats disk by 10× on throughput and 70–100× on metadata/random I/O, but it consumes your Slurm `--mem` allocation.
+- Local `/tmp` (NVMe SSD on rhino; on gizmo nodes it is `$TMPDIR` / `$SCRATCH_LOCAL`) is 9× faster than any NFS tier for sequential I/O and ~70× faster on metadata. Use it for I/O-heavy single-node jobs.
+- Among NFS tiers, `/hpc/temp` has the best bulk sequential read (1 MiB block size), but ~2× slower metadata than `/fh/fast` or `/fh/working`. For many-small-files workloads, prefer `/fh/fast` or stage to `$TMPDIR`.
+- `/fh/working` and `/fh/fast` track very close to each other (same NFS block size, similar Isilon/Osmium backends).
+
+Numbers are single-host, single-run; rerun under your own load before relying on them for capacity planning. See `docs/benchmarks/storage_performance.md` for the full report.
 
 ### Cloud Scratch (S3)
 

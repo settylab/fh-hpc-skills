@@ -1,5 +1,5 @@
 ---
-description: "Overview of Fred Hutch storage tiers: home, fast, scratch, economy/S3, working, and secure"
+description: "Overview of Fred Hutch storage tiers: home, fast, /hpc/temp, economy/S3, working, and secure"
 ---
 
 # Fred Hutch Data Storage Overview
@@ -53,7 +53,7 @@ When advising on storage choice:
 
 1. Ask what kind of data (size, sensitivity, access pattern)
 2. Recommend the appropriate tier from the table above
-3. Warn if the user is about to put the only copy of data in temp/scratch storage
+3. Warn if the user is about to put the only copy of data in `/hpc/temp/` (auto-deleted 30 days after creation)
 4. For PHI, confirm the chosen system is ISO-approved
 5. For large transfers between tiers, suggest Motuz or HutchGO (Globus)
 

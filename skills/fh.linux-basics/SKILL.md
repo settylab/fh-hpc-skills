@@ -124,7 +124,7 @@ du -sh directory/
 |------|---------|
 | `~` or `/home/username` | Home directory (small, backed up) |
 | `/fh/fast/lastname_f/` | Lab fast storage (large, primary workspace) |
-| `/hpc/temp/` | Temporary scratch (30-day auto-delete, replaces deprecated `/fh/scratch/`) |
+| `/hpc/temp/setty_m/$USER/` | Temporary scratch (NFSv4.1, 30-day auto-delete from creation date) |
 
 ### Learning Resources
 

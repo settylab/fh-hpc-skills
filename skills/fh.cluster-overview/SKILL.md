@@ -69,9 +69,8 @@ sinfo -o "%P %D %c %m %G"            # Partition overview
 
 ```
 /fh/fast/<pi>/user/<you>/    # Primary working storage (NFS, persistent, backed up)
-/hpc/temp/<pi>/<you>/        # Temp scratch (NFS4, 30-day auto-delete, free)
+/hpc/temp/<pi>/<you>/        # Temp scratch (NFSv4.1, 30-day auto-delete, free; touch does NOT reset)
 $SCRATCH_LOCAL (/loc/scratch) # Job-local SSD (fastest I/O, destroyed at job end)
 /fh/working/<pi>/            # Working copies (NFS, no auto-purge, 20TB default)
 /app/modules/all/            # Software modules
-# NOTE: /fh/scratch/ is deprecated and no longer mounted. Use /hpc/temp/ instead.
 ```
