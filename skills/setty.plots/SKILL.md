@@ -1,14 +1,14 @@
 ---
-description: "Setty Lab plot aesthetics: publication-quality matplotlib/plotnine styling, Helvetica/Arial fonts, Paired palette, DPI/figure-size conventions, Illustrator handoff"
+description: "Setty Lab plot aesthetics: publication-quality matplotlib/seaborn/scanpy styling, Helvetica/Arial fonts, Paired palette, DPI/figure-size conventions, Illustrator handoff; pointers to palantir.plot and kompot.plot"
 ---
 
 # Setty Lab Plot Aesthetics
 
-TRIGGER when: user is making figures for a Setty Lab paper/poster/presentation, asks about matplotlib/seaborn/scanpy/plotnine styling, wants lab-consistent colors or fonts, prepares figures for Illustrator, or asks how to configure Arial/Helvetica for publication.
+TRIGGER when: user is making figures for a Setty Lab paper/poster/presentation, asks about matplotlib/seaborn/scanpy styling, wants lab-consistent colors or fonts, prepares figures for Illustrator, asks how to configure Arial/Helvetica for publication, or needs to plot palantir pseudotime/gene trends or kompot volcano/heatmap results.
 
 ## Context
 
-The Setty Lab maintains consistent plot aesthetics so figures across projects and manuscripts read as one visual voice. Enforcement is mostly through matplotlib `rcParams` (also inherited by seaborn, scanpy, squidpy, etc.) plus a plotnine theme for grammar-of-graphics work. Publisher font requirements (typically Arial) are handled by transferring the font to the HPC once and referencing it from `rcParams`.
+The Setty Lab maintains consistent plot aesthetics so figures across projects and manuscripts read as one visual voice. The stack is matplotlib (canonical), with seaborn and scanpy layered on top — both inherit matplotlib `rcParams`, so the drop-in below configures all three. Lab-built plotting utilities live in `palantir.plot` (trajectory/pseudotime) and `kompot.plot` (differential abundance/expression); prefer these over ad-hoc code for lab-standard analyses. Publisher font requirements (typically Arial) are handled by transferring the font to the HPC once and referencing it from `rcParams`.
 
 Source: [Setty Lab Wiki — Plot Aesthetics](https://github.com/settylab/Lab-wiki/wiki/Plot-Aesthetics).
 
@@ -30,7 +30,7 @@ These are the lab conventions. Every figure should satisfy them unless there is 
 
 ## Drop-in matplotlib setup
 
-Put this at the top of any script or notebook that produces lab figures. It also propagates to seaborn and scanpy:
+Put this at the top of any script or notebook that produces lab figures. seaborn and scanpy inherit these settings automatically:
 
 ```python
 import matplotlib.pyplot as plt
@@ -80,33 +80,69 @@ for s in ax.spines.values():
     s.set_visible(False)
 ```
 
-## Plotnine (grammar of graphics)
+## Seaborn and scanpy
+
+Both inherit the matplotlib `rcParams` set above. A few caveats:
+
+- `sns.set_theme()` **overrides** your `rcParams`. If you call it, call it *before* the drop-in, or pass `rc={...}` to merge. Simplest: do not call `sns.set_theme()`.
+- Use `sns.despine()` per-figure to drop the top/right spines when you want to keep bottom/left (the drop-in removes all four globally; override per-plot if you need axes).
+- scanpy plotting (`sc.pl.*`) respects `rcParams["figure.figsize"]` and font settings but its palette is set per call via `palette=`. Pass a lab palette explicitly — do not rely on scanpy defaults.
 
 ```python
-import plotnine as p9
+sc.pl.umap(adata, color="celltype", palette=CELLTYPE_COLORS, frameon=False, size=8)
+```
 
-base_theme = (
-    p9.theme_classic()                          # no grid, thin axes
-    + p9.theme(
-        figure_size=(6, 6),                     # square
-        text=p9.element_text(family="Helvetica"),
-        dpi=150,
-    )
-)
+`frameon=False` drops the scanpy-specific frame; it is not controlled by the spines rcParams.
 
-plot = (
-    p9.ggplot(df, p9.aes("x", "y", color="celltype"))
-    + p9.geom_point(size=0.5)
-    + base_theme
-    + p9.scale_x_continuous(breaks=[10_000, 20_000], limits=(5_000, 25_000))
-    + p9.scale_colour_manual(
-        values=["#f4a261", "#2a9d8f", "#7471B1"],
-        breaks=["H1", "K562", "B cells"],
-    )
+## Lab plotting libraries
+
+Prefer these over rolling your own plot code when the analysis matches:
+
+### palantir.plot (trajectory / pseudotime)
+
+```python
+import palantir
+```
+
+| Function | Use |
+|---|---|
+| `plot_palantir_results(ad)` | Pseudotime, differentiation potential, branch probabilities on UMAP (one-call summary figure) |
+| `plot_diffusion_components(ad)` | Diffusion map components panel grid |
+| `plot_terminal_state_probs(ad, cells)` | Terminal-state probability bars per cell |
+| `plot_branch_selection(ad)` | Inspect which cells are assigned to each branch |
+| `plot_gene_trends(ad, genes=[...])` | Smoothed gene expression vs pseudotime, per branch |
+| `plot_gene_trend_heatmaps(ad, genes=[...])` | Gene-by-pseudotime heatmap, one panel per branch |
+| `plot_gene_trend_clusters(ad, clusters)` | Cluster-mean trend curves |
+| `plot_trajectory(ad, branch)` / `plot_trajectories(ad)` | Trajectory overlay on embedding |
+| `highlight_cells_on_umap(ad, cells)` | Subset highlight on UMAP |
+| `gene_score_histogram(ad, score)` | Score distribution with thresholds |
+
+Docs and tutorials: [settylab/Palantir](https://github.com/settylab/Palantir), [readthedocs](https://palantir.readthedocs.io/).
+
+### kompot.plot (differential abundance / expression)
+
+```python
+from kompot.plot import (
+    volcano_de, volcano_da, multi_volcano_da,
+    heatmap, direction_barplot,
+    plot_gene_expression, embedding, plot_smoothing,
+    StringDBReport,
 )
 ```
 
-Keep a central palette module for your project (e.g., `project/palettes.py`) so the same celltype → color map is imported by every notebook.
+| Function | Use |
+|---|---|
+| `volcano_de(ad, ...)` | Differential **expression** volcano (log-fold-change vs significance) |
+| `volcano_da(ad, ...)` | Differential **abundance** volcano (per-cell log-density change) |
+| `multi_volcano_da(ad, ...)` | Grid of DA volcanoes across comparisons |
+| `heatmap(ad, genes=[...])` | Gene × group heatmap with direction annotations |
+| `direction_barplot(ad)` | Up/down gene counts per group |
+| `plot_gene_expression(ad, genes=[...])` | Side-by-side expression across conditions |
+| `embedding(ad, color=...)` | Kompot-styled UMAP/embedding plot |
+| `plot_smoothing(ad, gene)` | Kompot density smoothing diagnostic |
+| `StringDBReport(genes).render()` | Auto-generate a STRING-db gene-set report |
+
+Docs: [settylab/kompot](https://github.com/settylab/kompot), `kompot/docs/source/plotting.rst` in the repo. These functions accept standard matplotlib `ax=` / `figsize=` kwargs, so the rcParams drop-in applies. They handle rule-compliant styling internally (despining, tick limits) — if you see a kompot plot that violates the rules, that is a kompot bug, not yours to paper over.
 
 ## Colors
 
@@ -194,5 +230,6 @@ With `pdf.fonttype = 42` and `svg.fonttype = "none"` set in the drop-in above, t
 - [Setty Lab Wiki — Plot Aesthetics](https://github.com/settylab/Lab-wiki/wiki/Plot-Aesthetics) (canonical source)
 - [Setty Lab Wiki — Tips & Tricks: Jupyter plot presets](https://github.com/settylab/Lab-wiki/wiki/Tips-and-Tricks#jupyter-notebook)
 - [matplotlib rcParams reference](https://matplotlib.org/stable/users/explain/customizing.html)
-- [plotnine docs](https://plotnine.readthedocs.io/)
-- Related skills: `fh.python` (environment setup that supplies matplotlib/plotnine), `fh.vscode-remote` (viewing plots over SSH).
+- [Palantir (settylab/Palantir)](https://github.com/settylab/Palantir) — trajectory/pseudotime plotting utilities
+- [Kompot (settylab/kompot)](https://github.com/settylab/kompot) — differential abundance/expression plotting utilities
+- Related skills: `fh.python` (environment setup that supplies matplotlib/seaborn/scanpy), `fh.vscode-remote` (viewing plots over SSH).

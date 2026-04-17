@@ -43,7 +43,7 @@ Claude Code loads skills based on what you're doing. Ask about submitting a Slur
 | `fh.testing` | pytest, testthat, nf-test, snapshot testing, CI, practical priorities |
 | `fh.vscode-remote` | VS Code remote on compute nodes, Lmod integration |
 | `fh.workflows-overview` | Nextflow vs Snakemake vs WDL, portability stack, cloud bursting |
-| `setty.plots` | Setty Lab plot aesthetics: matplotlib/plotnine styling, Helvetica/Arial, Paired palette, Illustrator handoff |
+| `setty.plots` | Setty Lab plot aesthetics: matplotlib/seaborn/scanpy styling, Helvetica/Arial, Paired palette, Illustrator handoff, palantir/kompot plot references |
 
 ## Sources
 
