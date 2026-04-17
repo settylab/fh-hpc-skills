@@ -248,6 +248,30 @@ Use these inside your job scripts:
 bowtie2 -p $SLURM_CPUS_ON_NODE -x index -U reads.fq -S output.sam
 ```
 
+### Gotcha: Slurm stages a copy of the submitted script
+
+**Slurm copies your script** into a private per-job staging dir (`/var/tmp/slurmd/job<id>/slurm_script`) and runs *that* copy. Only the script itself is staged — **not its siblings**. This breaks any path idiom that locates neighbors relative to the running file:
+
+- Bash: `SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"` → points into unwritable staging → `Permission denied` when you try to `mkdir`/write there.
+- Python: `Path(__file__).parent` → same staging dir → `ImportError` (siblings missing), `FileNotFoundError` (configs missing), or silently-wrong relative paths.
+
+**Fix:** use `$SLURM_SUBMIT_DIR` — the directory from which `sbatch` was invoked — as the anchor for everything. `pwd` inside the job is already set to it.
+
+```bash
+# Bash
+HERE="${SLURM_SUBMIT_DIR:-$(dirname "${BASH_SOURCE[0]}")}"
+```
+
+```python
+# Python
+import os, sys
+from pathlib import Path
+HERE = Path(os.environ.get("SLURM_SUBMIT_DIR") or Path(__file__).resolve().parent)
+sys.path.insert(0, str(HERE))
+```
+
+Related: `#SBATCH --output=%x_%j.out` is also interpreted relative to `$SLURM_SUBMIT_DIR`, not to the script's location. Pass an absolute path if you want logs elsewhere.
+
 ### Workflow Managers
 
 For multi-step pipelines, Fred Hutch recommends Nextflow or WDL (Cromwell) rather than manually chaining sbatch scripts.

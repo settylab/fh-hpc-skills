@@ -1,0 +1,5 @@
+# Generated benchmark outputs; commit aggregated summaries only.
+*.log
+*.json
+*.tsv
+*.out
