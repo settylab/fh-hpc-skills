@@ -19,7 +19,7 @@ New Fred Hutch research community members need to set up access to computing res
 
 ### Step 2: Understand the Infrastructure
 
-- **Rhino**: Shared login nodes for light interactive work, prototyping, job submission. 3 nodes (rhino01-03) via round-robin SSH. Do NOT run compute-intensive tasks here (1,000 CPU-second limit).
+- **Rhino**: Shared login nodes for light interactive work, prototyping, job submission. 3 nodes (rhino01-03) via round-robin SSH. Do NOT run compute-intensive tasks here (1,000 CPU-second limit). See `fh.shared-nodes` for multi-tenant etiquette (rhino + any shared gizmo / `barnacle` setup).
 - **Gizmo**: Compute cluster for actual work. Access via `grabnode` (interactive) or `sbatch` (batch).
 - **Storage**: `/fh/fast/` (fast, primary), Economy Cloud (S3 buckets, accessed via `aws s3`), `/hpc/temp/` (temporary staging)
 

@@ -90,7 +90,7 @@ srun --partition=interactive --cpus-per-task=4 --mem=16G --time=4:00:00 --pty ba
 
 - Request only the resources you need (CPUs, memory, time)
 - Release nodes promptly when done (do not leave idle sessions open)
-- Do not run compute-heavy work directly on rhino login nodes
+- Do not run compute-heavy work directly on rhino login nodes (see `fh.shared-nodes` for multi-tenant etiquette, including the settylab `barnacle` pattern on `gizmok1`)
 - Use `grabnode` for development/testing, then convert to batch jobs for production runs
 - Use `sbatch` for non-interactive work instead of grabnode
 - Validate job scripts on a small input before submitting large batch runs. If you are already on a compute node (check `hostname` — anything other than `rhino*` means you are on a compute node), you can test commands directly using the node's resources. Otherwise, use `grabnode` interactively or submit a short `sbatch --array=1-1 -p short` test job.
