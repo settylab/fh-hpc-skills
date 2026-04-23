@@ -38,6 +38,8 @@ grabnode
 # Prompts: CPUs (1-36), Memory (default 20GB), Duration (1-7 days), GPU (yes/no)
 ```
 
+Setty lab members: your first-choice interactive path is the shared `gizmok1` node via `barnacle` — see `fh.settylab-interactive`. Fall back to `grabnode` when the shared node is saturated or you need guaranteed resources.
+
 ### Step 5: Learn Basic Job Submission
 
 ```bash
