@@ -115,33 +115,28 @@ This is also documented as a `CLAUDE.md` callout being added in parallel by the 
 
 **Cite.** `reports/palantir_2026-04-20_204350_pr178-fix-and-tests.md`.
 
-## 4. `squeue -h -o "%i"` returns empty — format-string ordering matters
+## 4. `squeue` inside the sandbox — auto-scoped, with a current scope-filter bug
 
-**Symptom.** Filtering `squeue` output to a single column returns nothing, even though jobs are queued. Adding a second column makes rows appear, but only in a specific order.
+**Intent.** `squeue` in the sandbox is auto-scoped to the agent's current chaperon project. Jobs from other projects, other sandbox sessions, and other users should not appear, regardless of `-o` format.
 
-```bash
-squeue -h -o "%i"          # empty
-squeue -h -o "%j"          # rows
-squeue -h -o "%i %j"       # empty
-squeue -h -o "%j %i"       # rows
-squeue                     # rows (default format)
-```
+**Current bug.** The handler's awk filter (`chaperon/handlers/squeue.sh:274–289`) only applies the scope check when the first format column starts with a digit. With a non-numeric leading column (e.g. `-o "%j ..."`), the filter falls through to an unconditional pass-through and rows from out-of-scope sandboxes within the same user are emitted. With a numeric leading column (e.g. `-o "%i ..."`), the filter activates and you see only your scope — which means an empty result when your scope has no jobs even if a sibling session does.
 
-**Root cause.** The sandbox `squeue` wrapper applies a leading-field filter that's order-sensitive — when the first format token is `%i` (job id), the filter strips the row. Putting any other token first lets the row through, after which `%i` renders correctly. Why specifically `%i` is the trigger isn't documented; treat it as a wrapper quirk, not a bug in your script.
+This is a within-user, cross-project information leak. Cross-user leakage is still blocked by Slurm's own auth (the handler injects `--me`); the open surface is project / session scope inside one user account. Triage and proposed fix: [`nexus_2026-04-28_143841_sandbox-gotcha-triage`](https://github.com/settylab/dotto-nexus/wiki/nexus_2026-04-28_143841_sandbox-gotcha-triage) § "Gotcha 4". The sandbox-side fix is in flight, not yet merged.
 
-**Workaround.** Always put the job name (`%j`) — or any field other than `%i` — first when you want to read job IDs out of `squeue`. Use `awk` to project to whichever column you actually need.
+**What to do in the meantime.** Don't reach for a format string that "returns rows" — if it returns rows that the numeric-first form doesn't, those extra rows are the leak. Two safe paths:
 
 ```bash
-# Get this user's job IDs in the sandbox
-squeue -h -u "$USER" -o "%j %i" | awk '{print $NF}'
+# (a) Slurm-native self-scope; bypasses the broken handler filter path.
+squeue --me
 
-# Or with --noheader --format and a clearly two-field layout
-squeue --noheader --format="%j %i %T" -u "$USER" | awk '{print $2}'
+# (b) Explicit numeric-first format — %i is numeric, so the scope filter activates as intended.
+squeue -h -o "%i %j %T"
+squeue -h -o "%i" | awk '{print $1}'
 ```
 
-If a smoke-test that worked outside the sandbox starts returning empty, suspect the format-string before suspecting Slurm.
+If `squeue --me` or a numeric-first `-o` form returns less than you expect, the right move is to ask the user rather than search for a format string that produces more rows. "More rows" in this handler means "out-of-scope rows," not "the rows you're missing."
 
-**Cite.** `reports/barnacle_2026-04-28_005212_heartbeat.md`.
+**Cite.** `reports/barnacle_2026-04-28_005212_heartbeat.md`; triage report linked above.
 
 ## 5. `sacct --user` blocked in sandbox — drop the flag
 
