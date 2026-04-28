@@ -1,10 +1,10 @@
 ---
-description: "Setty Lab plot aesthetics: publication-quality matplotlib/seaborn/scanpy styling, Helvetica/Arial fonts, Paired palette, DPI/figure-size conventions, Illustrator handoff; pointers to palantir.plot and kompot.plot"
+description: "Setty Lab plot aesthetics: publication-quality matplotlib/seaborn/scanpy styling, Helvetica/Arial fonts (with Liberation Sans fallback and mathtext-pitfall guidance), Paired palette, DPI/figure-size conventions, Illustrator handoff; pointers to palantir.plot and kompot.plot"
 ---
 
 # Setty Lab Plot Aesthetics
 
-TRIGGER when: user is making figures for a Setty Lab paper/poster/presentation, asks about matplotlib/seaborn/scanpy styling, wants lab-consistent colors or fonts, prepares figures for Illustrator, asks how to configure Arial/Helvetica for publication, or needs to plot palantir pseudotime/gene trends or kompot volcano/heatmap results.
+TRIGGER when: user is making figures for a Setty Lab paper/poster/presentation, asks about matplotlib/seaborn/scanpy styling, wants lab-consistent colors or fonts, prepares figures for Illustrator, asks how to configure Arial/Helvetica for publication, sees title characters split into per-letter frames in Illustrator, needs an editable PDF (`pdf.fonttype=42`) with embedded Arial / Liberation Sans, or needs to plot palantir pseudotime/gene trends or kompot volcano/heatmap results.
 
 ## Context
 
@@ -47,11 +47,13 @@ for side in ("top", "right", "bottom", "left"):
     plt.rcParams[f"axes.spines.{side}"] = False
 plt.rcParams["axes.grid"] = False
 
-# Fonts: Helvetica preferred, Arial for publishers that require it,
-# DejaVu Sans as the matplotlib-bundled fallback so figures still render
-# on systems without either font installed.
+# Fonts: Helvetica preferred; Arial when a publisher mandates it.
+# Liberation Sans is metric-compatible with Arial (identical glyph
+# widths) so a font swap in Illustrator does not reflow the layout.
+# DejaVu Sans last — keep as the matplotlib-bundled last resort
+# only; its metrics differ from Arial. See "Arial on Gizmo" below.
 plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = ["Helvetica", "Arial", "DejaVu Sans"]
+plt.rcParams["font.sans-serif"] = ["Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"]
 
 # Keep text as real text (not outlined paths) in PDF/SVG so Illustrator
 # can edit labels directly.
@@ -158,39 +160,53 @@ matplotlib.colormaps["Paired"]                                              # pr
 
 For continuous maps, the lab default is `Spectral_r` (set above in `rcParams`).
 
-## Arial font on Gizmo (publisher requirement)
+## Arial on Gizmo (publisher-required)
 
-If a publisher mandates Arial, copy the font from your laptop to the HPC once, rebuild the font cache, and reference it from Python. Arial is not redistributable, so you must supply your own licensed copy.
+Arial is **not redistributable**; supply your own licensed copy. The metric-compatible fallback is **Liberation Sans** (ships with `fonts-liberation`) — its glyph widths match Arial exactly, so swapping to real Arial in Illustrator does not reflow. Do **not** fall back to DejaVu Sans; its metrics differ.
 
-### 1. Transfer Arial to the HPC
+### Place and discover
 
-macOS:
+Put licensed TTFs (Regular **plus** Bold/Italic/BoldItalic — variants register separately, see pitfalls) in one of `~/.fonts/`, `~/.local/share/fonts/` (XDG), `~/.claude/fonts/` (sandbox-writable), or `<repo>/.fonts/` (gitignore — Arial is not redistributable). Then `fc-cache -f <dir>` and restart Python; `fc-list | grep -iE 'arial|liberation'` confirms.
 
-```bash
-rsync /System/Library/Fonts/Supplemental/Arial* <hutchnetid>@rhino02.fhcrc.org:~/.fonts/
-```
-
-Windows (WSL):
-
-```bash
-rsync /mnt/c/Windows/Fonts/Arial* <hutchnetid>@rhino02.fhcrc.org:~/.fonts/
-```
-
-### 2. Rebuild the HPC font cache
-
-```bash
-ssh <hutchnetid>@rhino02
-fc-cache -v "$HOME/.fonts"
-```
-
-### 3. Refresh matplotlib's font cache
+### Register before rcParams
 
 ```python
-import matplotlib.font_manager
-matplotlib.font_manager._load_fontmanager(try_read_cache=False)
+import matplotlib as mpl
+from pathlib import Path
+
+def _register_arial_if_available():
+    for d in [Path.home() / ".fonts",
+              Path.home() / ".local" / "share" / "fonts",
+              Path.home() / ".claude" / "fonts",
+              Path(__file__).parent / ".fonts"]:
+        if not d.is_dir():
+            continue
+        for ttf in d.iterdir():
+            if ttf.suffix.lower() == ".ttf" and "arial" in ttf.name.lower():
+                mpl.font_manager.fontManager.addfont(str(ttf))
+
+_register_arial_if_available()  # call before the rcParams drop-in above
 ```
 
-Restart the Python kernel after this if the font still does not resolve. Then the `font.sans-serif = ["Helvetica", "Arial", ...]` entry in the setup above will pick it up.
+The drop-in's font chain (`Arial → Liberation Sans → Helvetica → DejaVu Sans`) resolves to Arial if registered, Liberation Sans otherwise — layout is preserved either way.
+
+### Verify embedded fonts
+
+```bash
+pdffonts figures/Fig4.pdf
+# Expected: BGZIHO+Arial or BGZIHO+LiberationSans, type "CID TrueType", emb yes.
+# Failure: any "Type 3" line — vector paths, not editable text.
+```
+
+If poppler is missing on the sandbox, regex `/BaseFont` + `/Subtype` directly out of the PDF bytes (`re.findall(rb"/BaseFont\s*/([\w+\-]+).*?/Subtype\s*/([\w]+)", open(pdf,"rb").read(), re.DOTALL)`); subtype must be `Type0` / `CIDFontType2`, never `Type3`. For per-title structural checks, `pdfminer.six` extracts each title as a single `LTTextContainer` — a multi-line title like `'Tal1 chimera: Phlda2 LFC\n(WT → Tal1-/-)'` should come out as one container, not multiple (multiple = per-glyph emission, Illustrator will split the title on import). Install with `uv pip install pdfminer.six` (see `settylab.sandbox-gotchas` for the `uv pip` rule).
+
+### Known pitfalls
+
+- **Mathtext kills connected text.** Any `$\it{…}$`, `$\rightarrow$`, `$X^{Y}$` span in a title forces per-glyph `Tj` emission, and Illustrator splits the title into per-character text frames on import. Use plain Unicode (`→`, `α`, `±`) for arrows, Greek, math symbols. Italics for gene/species names belong in the editorial pass on the PDF, not in the matplotlib title string. **This is the most common Arial-pipeline regression.**
+- **`pdf.use14corefonts=True` is a foot-gun.** Forces the 14 PDF base fonts (Helvetica is Arial-metric-equivalent) and **ignores** `font.sans-serif`, so Arial registered via `addfont` is discarded. Do not combine.
+- **Italic / Bold variants must be registered separately.** `addfont('Arial.ttf')` adds only Regular. Without `Arial-Bold.ttf` / `Arial-Italic.ttf`, `fontstyle='italic'` silently falls back to DejaVu Sans Oblique and the figure mixes fonts.
+- **Configure rcParams once, in the entry module.** Child modules and per-panel functions that re-set rcParams override the global config and silently desync panels.
+- **Fontconfig cache staleness.** After dropping a TTF into `~/.fonts/`, run `fc-cache -f ~/.fonts` and restart Python. In long-running Jupyter sessions, force matplotlib to re-scan with `mpl.font_manager._load_fontmanager(try_read_cache=False)`.
 
 ## Export for Illustrator
 
@@ -229,7 +245,5 @@ With `pdf.fonttype = 42` and `svg.fonttype = "none"` set in the drop-in above, t
 
 - [Setty Lab Wiki — Plot Aesthetics](https://github.com/settylab/Lab-wiki/wiki/Plot-Aesthetics) (canonical source)
 - [Setty Lab Wiki — Tips & Tricks: Jupyter plot presets](https://github.com/settylab/Lab-wiki/wiki/Tips-and-Tricks#jupyter-notebook)
-- [matplotlib rcParams reference](https://matplotlib.org/stable/users/explain/customizing.html)
-- [Palantir (settylab/Palantir)](https://github.com/settylab/Palantir) — trajectory/pseudotime plotting utilities
-- [Kompot (settylab/kompot)](https://github.com/settylab/kompot) — differential abundance/expression plotting utilities
-- Related skills: `fh.python` (environment setup that supplies matplotlib/seaborn/scanpy), `fh.vscode-remote` (viewing plots over SSH).
+- [matplotlib rcParams reference](https://matplotlib.org/stable/users/explain/customizing.html); lab plotting libraries linked inline above ([Palantir](https://github.com/settylab/Palantir), [Kompot](https://github.com/settylab/kompot)).
+- Related skills: `fh.python` (matplotlib/seaborn/scanpy environments), `fh.vscode-remote` (plots over SSH), `setty.labsh` (stateful Jupyter), `settylab.sandbox-gotchas` (`uv pip` rule for `pdfminer.six`).
