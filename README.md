@@ -6,7 +6,7 @@ A Claude Code skill plugin for the Fred Hutchinson Cancer Center HPC cluster (Gi
 
 Claude Code loads skills based on what you're doing. Ask about submitting a Slurm job, and it loads `fh.slurm`. Ask about GPU availability, and it loads `fh.gpu` and `fh.monitoring`. Each skill is a focused document covering one topic with commands, examples, pitfalls, and references.
 
-34 skills cover the full surface area of the Fred Hutch HPC, plus lab-specific conventions under the `setty.*` namespace:
+36 skills cover the full surface area of the Fred Hutch HPC, plus lab-specific conventions under the `setty.*` and `settylab.*` namespaces:
 
 | Skill | Description |
 |-------|-------------|
@@ -43,7 +43,9 @@ Claude Code loads skills based on what you're doing. Ask about submitting a Slur
 | `fh.testing` | pytest, testthat, nf-test, snapshot testing, CI, practical priorities |
 | `fh.vscode-remote` | VS Code remote on compute nodes, Lmod integration |
 | `fh.workflows-overview` | Nextflow vs Snakemake vs WDL, portability stack, cloud bursting |
+| `setty.labsh` | Project-local JupyterLab with CLI-driven stateful kernels for iterative analysis on slow-to-load data |
 | `setty.plots` | Setty Lab plot aesthetics: matplotlib/seaborn/scanpy styling, Helvetica/Arial, Paired palette, Illustrator handoff, palantir/kompot plot references |
+| `settylab.sandbox-gotchas` | Sandbox-specific HPC notes: `/app/bin/pip` wrapper hangs (use `uv pip`), Slurm `sacct`/`squeue` auto-scope, cross-repo bot push form |
 
 ## Sources
 
@@ -107,10 +109,11 @@ Cloning into `~/.claude/` ensures skills are accessible inside the [agent_sandbo
 ```bash
 git clone git@github.com:settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
 
-# Symlink into the Claude Code config directory (respects custom CLAUDE_CONFIG_DIR)
+# Symlink into the Claude Code config directory (respects custom CLAUDE_CONFIG_DIR).
+# Globs every namespace shipped here: fh.*, setty.*, settylab.*
 SKILLS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
 mkdir -p "$SKILLS_DIR"
-for skill in ~/.claude/fh-hpc-skills/skills/fh.*/; do
+for skill in ~/.claude/fh-hpc-skills/skills/*/; do
   ln -sf "$skill" "$SKILLS_DIR/$(basename "$skill")"
 done
 ```
@@ -133,7 +136,7 @@ cp -r ~/.claude/fh-hpc-skills/skills/fh.slurm "$SKILLS_DIR/"
 
 ```bash
 SKILLS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
-ls "$SKILLS_DIR"/fh.*/SKILL.md
+ls "$SKILLS_DIR"/*/SKILL.md
 ```
 
 Skills become available immediately in your next Claude Code session. No restart required.
@@ -166,7 +169,7 @@ You can also invoke skills directly with slash commands if configured:
 ## Project structure
 
 ```
-skills/              # The deliverable: 33 Claude Code skills
+skills/              # The deliverable: 36 Claude Code skills
 docs/wiki-raw/       # Raw fetched wiki content
 docs/wiki-distilled/ # Structured knowledge extracted from wiki + live cluster
 shared/reports/      # Agent work reports and validation results
