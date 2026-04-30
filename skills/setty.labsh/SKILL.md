@@ -127,6 +127,41 @@ ssh -L 8888:localhost:8888 user@gizmok1.fhcrc.org
 For network-visible binds, use `labsh start --https` — `labsh`
 auto-generates a self-signed cert under `.jupyter/ssl/`.
 
+## Sandbox build deps (Ubuntu 18.04 / agent-sandbox)
+
+`labsh start` hardcodes `--with notebook-intelligence`, which pulls
+`tiktoken`. On the agent-sandbox (and any other Ubuntu 18.04 host with
+**glibc 2.27**), `tiktoken==0.12.0` has no compatible binary wheel
+(its only Linux wheels are `manylinux_2_28`, requiring glibc ≥2.28),
+so `uv` falls back to source build — which fails twice over:
+
+1. No Rust on the default sandbox `PATH`.
+2. Even with Lmod's `Rust/1.83.0`, `tiktoken==0.12.0`'s `Cargo.toml`
+   requires the `edition2024` cargo feature, which was only stabilized
+   in Rust 1.85+.
+
+The recipe that actually makes `labsh start` succeed:
+
+```bash
+# 1. Pin tiktoken to a version with a manylinux_2_17 wheel (no source build)
+echo 'tiktoken<0.12' > /tmp/labsh-constraints.txt
+export UV_CONSTRAINT=/tmp/labsh-constraints.txt
+
+# 2. Provide Rust + a writable CARGO_HOME, so any *other* PyO3 dep that
+#    needs to build from source still works. ~/.cargo is not visible
+#    inside the sandbox; use ~/.claude/ which is writable.
+ml Rust/1.83.0-GCCcore-13.3.0
+export CARGO_HOME="$HOME/.claude/cargo-cache"
+mkdir -p "$CARGO_HOME"
+
+labsh start
+```
+
+`uvx` honours `UV_CONSTRAINT` transparently, so no patch to labsh
+itself is required. The recipe is sandbox-specific — on a host with
+glibc ≥2.28 (or once the cluster ships Rust ≥1.85), the constraint
+becomes unnecessary.
+
 ## See Also
 
 - `fh.python` — Python on Gizmo (uv, modules, venvs); the
