@@ -192,6 +192,57 @@ through the fallback chain in this order:
    labsh start --with-ai
    ```
 
+### agent-sandbox specifics — `UV_CONSTRAINT` shortcut
+
+On the agent-sandbox (Ubuntu 18.04, glibc 2.27) and other glibc-old
+hosts there is a fourth option that sidesteps the Rust toolchain
+problem entirely: pin `tiktoken` to a version that still ships a
+`manylinux_2_17` wheel, so `uv` never falls back to a source build
+in the first place.
+
+```bash
+# 1. Pin tiktoken to a manylinux_2_17-compatible release.
+echo 'tiktoken<0.12' > /tmp/labsh-constraints.txt
+export UV_CONSTRAINT=/tmp/labsh-constraints.txt
+
+# 2. Insurance for any *other* PyO3 dep that still needs to build
+#    from source. ~/.cargo is not writable inside agent-sandbox;
+#    ~/.claude is. The Lmod Rust is fine for everything except
+#    tiktoken==0.12 itself, which is what UV_CONSTRAINT removed.
+ml Rust/1.83.0-GCCcore-13.3.0
+export CARGO_HOME="$HOME/.claude/cargo-cache"
+mkdir -p "$CARGO_HOME"
+
+labsh start --with-ai
+```
+
+`uvx` honours `UV_CONSTRAINT` transparently — no labsh patch needed.
+The constraint pins to `tiktoken==0.11.x`, whose wheel matches glibc
+2.17 and dodges the 1.85+ Rust requirement that `tiktoken==0.12.0`'s
+`Cargo.toml` introduces (it uses the `edition2024` cargo feature,
+stabilized only in Rust 1.85 — Lmod's `Rust/1.83.0` cannot build it).
+
+This is a transient workaround for two overlapping problems, both
+already resolving:
+
+- **Default path no longer hits it.** Since
+  [katosh/labsh#1](https://github.com/katosh/labsh/pull/1) made
+  `notebook-intelligence` opt-in (default off in labsh ≥ 0.4.0), the
+  bare `labsh start` path no longer pulls `tiktoken` at all. Only
+  `--with-ai` / `LABSH_AI=1` does.
+- **Module-load path will work soon.** Once
+  [FredHutch/easybuild-life-sciences#577](https://github.com/FredHutch/easybuild-life-sciences/pull/577)
+  ships `Rust/1.86.0-GCCcore-13.3.0`, source-building
+  `tiktoken==0.12` on Gizmo works directly via `module load` and the
+  constraint becomes unnecessary for the AI-opt-in case too.
+
+Until both have shipped to your host, the `UV_CONSTRAINT` shortcut
+is the no-Rust escape hatch for agent-sandbox `--with-ai` users.
+
+Recipe credit:
+[settylab/fh-hpc-skills#8](https://github.com/settylab/fh-hpc-skills/pull/8)
+(`@ethieme`).
+
 ### When to pick which path
 
 | Context | Recommended path |
