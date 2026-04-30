@@ -127,6 +127,86 @@ ssh -L 8888:localhost:8888 user@gizmok1.fhcrc.org
 For network-visible binds, use `labsh start --https` — `labsh`
 auto-generates a self-signed cert under `.jupyter/ssl/`.
 
+## Rust toolchain fallback (only relevant for `--with-ai` / `LABSH_AI=1`)
+
+The `notebook-intelligence` extension (opt-in via `--with-ai` or
+`LABSH_AI=1`, off by default since labsh v0.4.0) pulls `tiktoken`,
+which only ships `manylinux_2_28` wheels. On hosts with glibc < 2.28
+(Ubuntu 18.04, RHEL 7, the agent-sandbox) `uv` falls back to a
+**source build that needs Rust ≥ 1.85**. None of this matters in the
+default opt-out config — `labsh start` works fine without rust on a
+glibc-old host, the AI extension just isn't loaded.
+
+When the user *does* want the AI extension on a glibc-old host, work
+through the fallback chain in this order:
+
+1. **Skip rust entirely** — confirm the user actually wants the AI
+   extension. Default-off is the safe path. `labsh start` (no
+   `--with-ai`) gives full base JupyterLab + kernels. Only continue
+   below if `--with-ai` is a hard requirement.
+
+2. **`module load Rust/<version>` (Lmod, Gizmo).** Check what's
+   available before recommending a version:
+
+   ```bash
+   module avail Rust
+   ```
+
+   As of 2026-04, the FH Lmod stack tops out at
+   `Rust/1.83.0-GCCcore-13.3.0` (default `(D)`) — **too old** for
+   tiktoken's 1.85+ requirement. [FredHutch/easybuild-life-sciences
+   #577](https://github.com/FredHutch/easybuild-life-sciences/pull/577)
+   adds `Rust/1.86.0-GCCcore-13.3.0`; once it lands,
+   `module load Rust/1.86.0-GCCcore-13.3.0` is the cleanest fix and
+   the right recommendation for Gizmo (no project-local toolchain to
+   manage, reproducible, lives outside the sandbox quota).
+
+   Re-run `module avail Rust` instead of trusting this snapshot — the
+   stack moves.
+
+3. **`labsh install-rust` (project-local rustup, planned for v0.5).**
+   When no compatible module exists (e.g., on the agent-sandbox host,
+   or any non-Gizmo target) the labsh-shipped helper bootstraps
+   rustup-init into `./.jupyter/.cargo/` and `./.jupyter/.rustup/` —
+   same per-project pattern as `.jupyter/.labshvenv`. No
+   `~/.local` writes, no Lmod, `uv` picks up `cargo` from
+   `$CARGO_HOME/bin` once the helper exports the paths.
+
+   ```bash
+   labsh install-rust          # idempotent; bootstraps under ./.jupyter/.cargo
+   labsh start --with-ai       # toolchain sourced before uv sees the build
+   ```
+
+   **Status (as of labsh v0.4.0): `install-rust` is proposed but not
+   yet shipped.** It's the consensus follow-up from
+   [katosh/labsh#1](https://github.com/katosh/labsh/pull/1) (see the
+   comment thread for the design). Until it lands, the manual
+   equivalent is:
+
+   ```bash
+   export CARGO_HOME="$PWD/.jupyter/.cargo"
+   export RUSTUP_HOME="$PWD/.jupyter/.rustup"
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
+       --default-toolchain stable --no-modify-path -y
+   export PATH="$CARGO_HOME/bin:$PATH"
+   labsh start --with-ai
+   ```
+
+### When to pick which path
+
+| Context | Recommended path |
+|---------|------------------|
+| Don't actually need AI extension | Default — no rust needed |
+| CI / batch / reproducibility-sensitive | Module load (when ≥ 1.85 ships) |
+| Gizmo interactive, AI extension required | Module load if available, else project-local rustup |
+| agent-sandbox / non-Gizmo host | Project-local rustup (`install-rust` once shipped) |
+| One-off experiment, host-rust available | Whatever's already on `$PATH`, fastest |
+
+The module-load path is preferred when available because it's
+reproducible across users on the same node and doesn't burn
+sandbox / project-quota disk on a `~150 MB` toolchain. Project-local
+rustup is the universal fallback that always works.
+
 ## See Also
 
 - `fh.python` — Python on Gizmo (uv, modules, venvs); the
