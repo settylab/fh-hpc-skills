@@ -140,31 +140,39 @@ glibc-old host, the AI extension just isn't loaded.
 When the user *does* want the AI extension on a glibc-old host, work
 through the fallback chain in this order:
 
-1. **Skip rust entirely** — confirm the user actually wants the AI
-   extension. Default-off is the safe path. `labsh start` (no
-   `--with-ai`) gives full base JupyterLab + kernels. Only continue
-   below if `--with-ai` is a hard requirement.
-
-2. **`module load Rust/<version>` (Lmod, Gizmo).** Check what's
-   available before recommending a version:
+1. **`module load Rust/1.86.0-GCCcore-13.3.0` (Lmod, Gizmo) — the
+   canonical fix.** As of 2026-05-01 this is the newest Rust on the
+   FH Lmod stack and meets tiktoken's 1.85+ floor. It's the right
+   recommendation for Gizmo / harmony / chorus: reproducible across
+   users, no project-local toolchain to manage, no sandbox quota
+   burned on a `~150 MB` toolchain.
 
    ```bash
-   module avail Rust
+   module load Rust/1.86.0-GCCcore-13.3.0
+   labsh start --with-ai
    ```
 
-   As of 2026-04, the FH Lmod stack tops out at
-   `Rust/1.83.0-GCCcore-13.3.0` (default `(D)`) — **too old** for
-   tiktoken's 1.85+ requirement. [FredHutch/easybuild-life-sciences
-   #577](https://github.com/FredHutch/easybuild-life-sciences/pull/577)
-   adds `Rust/1.86.0-GCCcore-13.3.0`; once it lands,
-   `module load Rust/1.86.0-GCCcore-13.3.0` is the cleanest fix and
-   the right recommendation for Gizmo (no project-local toolchain to
-   manage, reproducible, lives outside the sandbox quota).
+   The module landed via
+   [FredHutch/easybuild-life-sciences#577](https://github.com/FredHutch/easybuild-life-sciences/pull/577)
+   (closed-as-build-request — see `fh.modules` "Requesting a new
+   module" for why upstream-stock easyconfigs get closed without
+   merge once the build lands). Confirm with `module spider Rust`
+   before relying on it; the stack moves.
 
-   Re-run `module avail Rust` instead of trusting this snapshot — the
-   stack moves.
+2. **`module load Rust/1.83.0-GCCcore-13.3.0` (or older).** Older
+   modules remain on the stack. Use one only if 1.86.0 isn't visible
+   for your toolchain hierarchy *and* the calling crate's
+   `Cargo.toml` doesn't require Rust ≥ 1.85 (e.g.,
+   `tiktoken==0.12` does — see the `UV_CONSTRAINT` shortcut below
+   for the no-Rust escape hatch in that exact case).
 
-3. **`labsh install-rust` (project-local rustup, planned for v0.5).**
+3. **Skip rust entirely** — confirm the user actually wants the AI
+   extension. Default-off is the safe path. `labsh start` (no
+   `--with-ai`) gives full base JupyterLab + kernels and never
+   pulls `tiktoken` at all. Only stay on the toolchain path if
+   `--with-ai` is a hard requirement.
+
+4. **`labsh install-rust` (project-local rustup, planned for v0.5).**
    When no compatible module exists (e.g., on the agent-sandbox host,
    or any non-Gizmo target) the labsh-shipped helper bootstraps
    rustup-init into `./.jupyter/.cargo/` and `./.jupyter/.rustup/` —
@@ -191,6 +199,13 @@ through the fallback chain in this order:
    export PATH="$CARGO_HOME/bin:$PATH"
    labsh start --with-ai
    ```
+
+5. **Last resort: manual `rustup` install to `~/.cargo`.** Same
+   `curl … rustup.rs | sh` invocation as step 4, but without the
+   project-local `CARGO_HOME` / `RUSTUP_HOME` redirect. Pollutes
+   `$HOME` and is non-reproducible across machines — only use when
+   nothing above works and the cost of a global toolchain is
+   acceptable for the task.
 
 ### agent-sandbox specifics — `UV_CONSTRAINT` shortcut
 
@@ -223,21 +238,24 @@ The constraint pins to `tiktoken==0.11.x`, whose wheel matches glibc
 stabilized only in Rust 1.85 — Lmod's `Rust/1.83.0` cannot build it).
 
 This is a transient workaround for two overlapping problems, both
-already resolving:
+already resolved on Gizmo:
 
 - **Default path no longer hits it.** Since
   [katosh/labsh#1](https://github.com/katosh/labsh/pull/1) made
   `notebook-intelligence` opt-in (default off in labsh ≥ 0.4.0), the
   bare `labsh start` path no longer pulls `tiktoken` at all. Only
   `--with-ai` / `LABSH_AI=1` does.
-- **Module-load path will work soon.** Once
-  [FredHutch/easybuild-life-sciences#577](https://github.com/FredHutch/easybuild-life-sciences/pull/577)
-  ships `Rust/1.86.0-GCCcore-13.3.0`, source-building
-  `tiktoken==0.12` on Gizmo works directly via `module load` and the
-  constraint becomes unnecessary for the AI-opt-in case too.
+- **Module-load path now works on Gizmo.** As of 2026-05-01
+  `Rust/1.86.0-GCCcore-13.3.0` is built on gizmo, harmony, and
+  chorus
+  ([FredHutch/easybuild-life-sciences#577](https://github.com/FredHutch/easybuild-life-sciences/pull/577)),
+  so source-building `tiktoken==0.12` works directly via
+  `module load` and the constraint is unnecessary for the
+  AI-opt-in case on Gizmo.
 
-Until both have shipped to your host, the `UV_CONSTRAINT` shortcut
-is the no-Rust escape hatch for agent-sandbox `--with-ai` users.
+The `UV_CONSTRAINT` shortcut remains the no-Rust escape hatch on
+glibc-old hosts that don't see the FH module stack — typically
+the agent-sandbox itself.
 
 Recipe credit:
 [settylab/fh-hpc-skills#8](https://github.com/settylab/fh-hpc-skills/pull/8)
@@ -248,9 +266,10 @@ Recipe credit:
 | Context | Recommended path |
 |---------|------------------|
 | Don't actually need AI extension | Default — no rust needed |
-| CI / batch / reproducibility-sensitive | Module load (when ≥ 1.85 ships) |
-| Gizmo interactive, AI extension required | Module load if available, else project-local rustup |
-| agent-sandbox / non-Gizmo host | Project-local rustup (`install-rust` once shipped) |
+| CI / batch / reproducibility-sensitive | `module load Rust/1.86.0-GCCcore-13.3.0` |
+| Gizmo / harmony / chorus interactive, AI extension required | `module load Rust/1.86.0-GCCcore-13.3.0` |
+| agent-sandbox (`--with-ai` required) | `UV_CONSTRAINT=tiktoken<0.12` shortcut, OR project-local rustup |
+| Non-Gizmo host without Lmod | Project-local rustup (`install-rust` once shipped, manual until then) |
 | One-off experiment, host-rust available | Whatever's already on `$PATH`, fastest |
 
 The module-load path is preferred when available because it's
