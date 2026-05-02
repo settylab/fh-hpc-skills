@@ -112,13 +112,13 @@ On both Rhino and Gizmo, load software through modules.
 - Configure mamba with the Fred Hutch mirror via project-local `.condarc` (see `fh.python` skill); anaconda.org is blocked
 - **PATH ordering matters:** if a mamba env is active when `module load` runs, the module takes precedence. Deactivate all envs, load modules, then `mamba activate` to give the env priority
 
-### Requesting New Software
+### Module not available?
 
-If the module you need is not available:
-- Email scicomp@fredhutch.org
-- File an issue on the `easybuild-life-sciences` GitHub repository
-
-SciComp builds and maintains modules using the EasyBuild framework.
+If `module spider <Name>` returns nothing, the module isn't built on
+the cluster — the GitHub easyconfig repo is *not* the inventory.
+See the **`fh.module-request`** skill for the 4-path decision tree
+(PR upstream urgent, PR upstream non-urgent, FH-specific recipe,
+version-bump build) used to file a build request to SciComp.
 
 ## Principles
 
@@ -132,4 +132,4 @@ SciComp builds and maintains modules using the EasyBuild framework.
 
 - SciComp Wiki: https://sciwiki.fredhutch.org/scicomputing/software_overview/
 - SciComp Wiki: https://sciwiki.fredhutch.org/scicomputing/software_running/
-- EasyBuild inventory: https://fredhutch.github.io/easybuild-life-sciences/
+- EasyBuild inventory (browse what's built): https://fredhutch.github.io/easybuild-life-sciences/
