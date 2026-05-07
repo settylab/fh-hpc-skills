@@ -1,0 +1,5 @@
+metric	n_runs	n_matches_global	frac_matches_global	global_order
+seq_write_MiBs	28	8	0.286	shm|localtmp|working|fast|temp
+seq_read_MiBs	28	11	0.393	shm|localtmp|temp|working|fast
+metadata_s	28	19	0.679	shm|localtmp|working|fast|temp
+random_read_ops	28	5	0.179	shm|localtmp|working|fast|temp
