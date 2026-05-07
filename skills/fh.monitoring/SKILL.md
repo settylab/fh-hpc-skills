@@ -47,6 +47,16 @@ https://grafana.fredhutch.org/d/iXVX2whZk/fast-file
 
 Query live cluster metrics through the Grafana datasource proxy. Prometheus datasource ID is 1.
 
+### Beyond live lookup: cluster-state JSONs as a correlation tool
+
+The same proxy endpoint is also useful for *recording* cluster state alongside experiments — giving you a load axis to correlate against later. The storage benchmark in this repo (`docs/benchmarks/`) demonstrates the pattern end-to-end:
+
+- `docs/benchmarks/capture_cluster_state.sh` — single curl call, captures `slurm_cpus_alloc`, `slurm_cpus_total`, `node_load15`, etc. into a per-run JSON.
+- `docs/benchmarks/aggregate_results.py` — joins per-run summary TSVs with the captured cluster JSONs.
+- `docs/benchmarks/analyze_weekly.py` — Spearman correlation of measured throughput vs `slurm_cpus_alloc / slurm_cpus_total`. Surfaced the `/fh/working/` ρ = −0.60 load-sensitivity finding (n=28, Apr 2026).
+
+Use this pattern any time you suspect cluster load is confounding an experiment (alignment runtime, job startup latency, NFS-bound throughput). The Grafana proxy is unauthenticated and read-only, so capturing state per-run is a one-line shell call with no credential rotation.
+
 ### Query Pattern
 
 ```bash

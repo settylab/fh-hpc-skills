@@ -24,17 +24,23 @@ Fred Hutch provides multiple storage tiers optimized for different use cases. Ch
 
 ## Decision Guide
 
-1. **Active scientific data** (genomics, imaging, analysis outputs): Use **Fast** (`/fh/fast/`). Best I/O performance, backed up daily.
+1. **Active scientific data — durable home** (notebooks, manuscripts, derived figures, code, lab-curated data, analysis outputs you'll cite): Use **Fast** (`/fh/fast/`). Daily backup + offsite replication. Performance is fine for typical analytical I/O but `/fh/fast/` is not the bulk-throughput winner — see `fh.storage-fast` and `fh.storage-scratch` for the per-metric picture.
 
-2. **Large archival datasets** or data you access infrequently: Use **Economy/S3** (`fh-pi-lastname-f-eco`). Cheapest per-TB, auto-tiered.
+2. **Bulk sequential reads** (loading a large matrix, alignment input, model checkpoint): Use **Temp** (`/hpc/temp/`). Per the Apr-2026 weekly benchmark (n=28), `/hpc/temp/` median read is 565 MiB/s vs 335 (`fast`) and 416 (`working`), and is the only NFS tier whose seq-read throughput is **insulated from cluster load** (Spearman ρ ≈ 0 across 0.44–0.90 cluster load). 30-day purge from creation date — never use as primary copy.
 
-3. **Temporary intermediate files** from compute jobs: Use **Temp** (`/hpc/temp`) or job-local storage. Free, auto-purged.
+3. **Bulk writes and metadata-heavy work** (large file writes, many small files, build trees, conda envs): Use **Working** (`/fh/working/`). Median write 278 MiB/s and metadata 4.0 s/1000 files both beat the other NFS tiers. Caveat: `/fh/working/` is the most load-sensitive on bulk reads (ρ = −0.60, p = 7×10⁻⁴) — degrades visibly under heavy cluster load. No automatic purge but no backup guarantee.
 
-4. **Working copies** of data whose primary lives elsewhere: Use **Working** (`/fh/working/`). No backup guarantee.
+4. **Job-local scratch on a compute node** (`$TMPDIR`, `/tmp`, `$SCRATCH_LOCAL`): conditional on node class. `gizmok*` nodes have ~2 GiB/s NVMe scratch and beat every NFS tier. `gizmoj*` nodes are ~10× slower across all metrics — staging *for random reads* on a `j` node is a net loss. See `fh.storage-scratch` "Per-node variance" for the cohort caveat.
 
-5. **PHI or PII data**: Use **Secure** (`/fh/secure/`) for POSIX access, or **Economy/S3** for object storage. Both support encryption at rest + access auditing.
+5. **In-memory tmpfs** (`/dev/shm/`): Beats every disk-backed tier by 5×–100×. Counts against the job's `--mem` allocation; size accordingly.
 
-6. **Documents and collaboration**: Use **OneDrive** for non-scientific files. 2TB per user, real-time collaboration.
+6. **Large archival datasets** or data you access infrequently: Use **Economy/S3** (`fh-pi-lastname-f-eco`). Cheapest per-TB, auto-tiered.
+
+7. **PHI or PII data**: Use **Secure** (`/fh/secure/`) for POSIX access, or **Economy/S3** for object storage. Both support encryption at rest + access auditing.
+
+8. **Documents and collaboration**: Use **OneDrive** for non-scientific files. 2TB per user, real-time collaboration.
+
+Empirical baseline for items 2–4: `docs/benchmarks/storage_performance.md` and `docs/benchmarks/weekly_summary.tsv`. Median+IQR across 28 Slurm runs on 21 distinct gizmo nodes, Apr 2026.
 
 ## Security Classification
 

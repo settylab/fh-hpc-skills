@@ -1,14 +1,16 @@
 ---
-description: "Using /fh/fast/ POSIX storage for scientific data at Fred Hutch"
+description: "Using /fh/fast/ POSIX storage at Fred Hutch — Isilon-backed, daily-backed-up, the durable home for lab data, manuscripts, code, analytical outputs, and long-term scientific files"
 ---
 
 # Fast Storage (/fh/fast/)
 
-TRIGGER when: user asks about /fh/fast/, fast storage, scientific file storage, POSIX storage, lab storage, collaboration folders, or file permissions on the cluster
+TRIGGER when: user asks about /fh/fast/, fast storage, Isilon, scientific file storage, POSIX storage, lab storage, collaboration folders, file permissions on the cluster, where to put long-term project data, or where backed-up storage lives.
 
 ## Context
 
 Fast storage is the primary high-performance POSIX filesystem for active scientific data at Fred Hutch. Each PI receives 5TB free, with additional capacity available at cost. Data is backed up daily with offsite replication.
+
+This is the **durability tier** — the place for any data whose loss would cost more than re-running a job: notebooks, manuscripts, derived figures, lab-curated data, code repos cloned for active work. Performance is fine for typical analytical I/O but `/fh/fast/` is not the bulk-throughput winner (see `fh.storage-scratch` for read-heavy staging and `fh.storage` for the cross-tier decision rules).
 
 ## Path Structure
 
@@ -102,7 +104,15 @@ When helping users with fast storage:
 | Snapshots | Available for quick recovery |
 | PHI | **NOT approved** (no access auditing); use Secure or Economy/S3 |
 | Physical location | On-premise data center, low-latency from gizmo nodes |
-| Performance | Good sequential throughput via NFS; for random I/O-heavy workloads, stage to `$TMPDIR` or `/dev/shm` |
+| Performance | Median sequential read 335 MiB/s [IQR 284–357], write 223 MiB/s [204–234], metadata 4.6 s/1000 files [4.4–4.9], random 4 KiB reads 2933 ops/s [2768–3045]. n=28 weekly fleet runs across 21 distinct gizmo nodes, Apr 2026. For random I/O-heavy workloads, stage to `$TMPDIR` (caveat: only fast on `gizmok*` nodes — see `fh.storage-scratch`) or `/dev/shm`. |
+
+### Performance under cluster load
+
+Per the Apr-2026 weekly benchmark (n=28 Slurm runs, cluster load 0.44–0.90), `/fh/fast/` sequential write throughput correlates negatively with cluster load (Spearman ρ = −0.43, p = 0.023). Expect ~20–25 % degradation at peak vs the 70 %-loaded baseline. Sequential read shows the same direction more weakly (ρ = −0.37, p = 0.050). Metadata and random-read ops/s are not load-correlated.
+
+Implication: bulk-write batch jobs land best when the cluster is in the lower half of its busy band. For agents writing many GiB to `/fh/fast/`, check `hitparade` or `sshare`-derived load before committing — if you have flexibility, the queue gap-fill window after midnight historically shows lower load. The exact slope is inside the 0.44–0.90 load range observed; behaviour at lower loads is unmeasured.
+
+Full data: `docs/benchmarks/storage_performance.md` and `docs/benchmarks/weekly_summary.tsv` in this repo.
 
 ## Principles
 

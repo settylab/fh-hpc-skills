@@ -1,6 +1,12 @@
+---
+description: "Gizmo cluster overview — node count, partition map, GPU availability, RAM tiers, and how to choose a partition. Verified against the live cluster on 2026-04-13."
+---
+
 # fh.cluster-overview
 
 Current Gizmo cluster specs, partitions, and resource limits. Verified against the live cluster on 2026-04-13.
+
+TRIGGER when: user asks about Fred Hutch HPC resources, partition limits, GPU availability, node specs, RAM per node, total cluster size, or how to choose a partition for their workload.
 
 ## When to Use
 

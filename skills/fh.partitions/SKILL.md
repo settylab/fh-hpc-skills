@@ -175,14 +175,32 @@ hitparade
 - Use `--nice=100` for non-urgent work so it yields to higher-priority users.
 - Use `--time-min` to let the scheduler exploit short gaps.
 
-### Local Scratch Storage (/loc)
+### Local Scratch Storage (/loc, $TMPDIR)
 
-Each node provides fast local scratch at `/loc`:
-- j nodes: 7 TB @ 300 MB/s
-- k nodes: 6 TB @ 300 MB/s
-- harmony nodes: 3 TB @ 300 MB/s
+Each node provides node-local scratch at `/loc` (with `$TMPDIR` and `/tmp` typically pointing into the same backing device for the job's lifetime). Capacity by node generation:
 
-Use `/loc/scratch/$SLURM_JOB_ID/` for temporary I/O-intensive work. Clean up after your job.
+- j nodes: ~7 TB
+- k nodes: ~6 TB
+- harmony nodes: ~3 TB
+
+Use `/loc/scratch/$SLURM_JOB_ID/` (or `$TMPDIR`) for temporary I/O-intensive work. Clean up after your job.
+
+**Performance varies by ~10× between node classes** — measured on `/tmp` over the Apr-2026 weekly fleet (n=28 Slurm runs, 8 distinct `gizmoj*` and 13 distinct `gizmok*` hosts). Median values:
+
+| Cohort | Sequential write | Sequential read | Random 4 KiB reads |
+|---|---|---|---|
+| `gizmoj*` | ~205 MiB/s | ~218 MiB/s | ~235 ops/s |
+| `gizmok*` | ~2144 MiB/s (NVMe) | ~1824 MiB/s | ~7824 ops/s |
+
+(Per the Apr-2026 weekly benchmark — supersedes earlier "300 MB/s for both" rule of thumb. The earlier figure was close for `gizmoj*` but 7× too low for `gizmok*`.)
+
+Operational implications for partition / constraint choice:
+
+- For random-read-heavy single-node jobs, prefer `gizmok*`. Add `--constraint=` (e.g., `--constraint=k`) or list a node feature in your sbatch if a `j`-class landing would invalidate the staging strategy.
+- For sequential-only jobs that don't lean on local scratch, j vs k makes no difference and you can let Slurm pick.
+- `$TMPDIR` / `$SCRATCH_LOCAL` is destroyed when the job ends — copy results back before exit.
+
+Full benchmark and per-host detail: `fh.storage-scratch` ("Per-node variance on `/tmp`") and `docs/benchmarks/storage_performance.md`.
 
 ## Principles
 
