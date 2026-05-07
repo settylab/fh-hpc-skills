@@ -105,7 +105,7 @@ renv::snapshot()
 renv::restore()
 ```
 
-Commit `renv.lock` to version control. This ensures anyone can recreate your exact package versions.
+Commit `renv.lock` to version control. This ensures anyone can recreate your exact package versions. For parallel-safe RNG (`L'Ecuyer-CMRG`), Bioconductor pinning, and the broader reproducibility checklist (modules, containers, agent-code risks), see `fh.reproducibility`.
 
 **When to use renv vs Lmod fhR:**
 - **fhR modules**: Quick interactive work, teaching, when the bundled 200+ packages are sufficient
