@@ -177,10 +177,13 @@ hitparade
 
 ### Local Scratch Storage (/loc)
 
-Each node provides fast local scratch at `/loc`:
-- j nodes: 7 TB @ 300 MB/s
-- k nodes: 6 TB @ 300 MB/s
-- harmony nodes: 3 TB @ 300 MB/s
+Each node provides node-local scratch at `/loc` (also reachable as `$TMPDIR` and `/tmp` inside a job). Capacity:
+
+- j nodes: ~7 TB
+- k nodes: ~6 TB
+- harmony nodes: ~3 TB
+
+Throughput **varies by ~10× between cohorts** — `gizmok*` nodes have NVMe scratch (~2 GiB/s read/write); `gizmoj*` nodes have a slower non-NVMe local disk (~200 MiB/s sequential, and ~30× fewer random IOPS than NVMe). Same Slurm `--tmp` request, very different storage tier — see `fh.storage-scratch` for when this matters and when it doesn't.
 
 Use `/loc/scratch/$SLURM_JOB_ID/` for temporary I/O-intensive work. Clean up after your job.
 

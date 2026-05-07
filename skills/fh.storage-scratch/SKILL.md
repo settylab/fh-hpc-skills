@@ -62,12 +62,12 @@ Use Working for datasets where a primary copy exists elsewhere (e.g., in Economy
 |----------|-------|
 | Path | `$SCRATCH_LOCAL` → `/loc/scratch`, also `$TMPDIR` |
 | Available on | The specific node running your Slurm job |
-| Storage type | Directly-attached local disk (SSD/NVMe on newer nodes) |
+| Storage type | Directly-attached local disk (NVMe on `gizmok*`, slower non-NVMe on `gizmoj*`) |
 | Duration | Job lifecycle only — destroyed when job ends |
 | Cost | Free |
-| Performance | **Fastest I/O** — no network overhead, ideal for random reads, many small files, databases |
+| Performance | **Conditional on node class.** `gizmok*`: ~2 GiB/s — beats every NFS tier. `gizmoj*`: ~10× slower on sequential read/write and ~30× fewer random IOPS. |
 
-Best for single-node jobs that need maximum I/O throughput. Use `$TMPDIR` or `$SCRATCH_LOCAL` within your Slurm job script. Data is irrecoverably destroyed when the job ends.
+Best for single-node jobs that need maximum I/O throughput, **on `gizmok*` nodes**. On `gizmoj*` nodes, the `$TMPDIR` staging round-trip is roughly break-even with `/fh/fast/` for sequential I/O and a clear loss for random reads — stay on `/fh/fast/` or `/fh/working/` instead. If random-read latency drives the run, prefer constraining the job to `gizmok*` (via Slurm node selection flags) over relying on `$TMPDIR` being uniformly fast. Data is irrecoverably destroyed when the job ends.
 
 ```bash
 #!/bin/bash
