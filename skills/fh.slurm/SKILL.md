@@ -20,18 +20,25 @@ Use `sbatch` to submit a job script. The script should contain `#SBATCH` directi
 #!/bin/bash
 #SBATCH --job-name=myjob
 #SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
 #SBATCH --time=1-00:00:00
 #SBATCH --partition=campus-new
-#SBATCH --output=slurm-%j.out
+#SBATCH --output=logs/%x_%j.out      # see "Log placement" below
 #SBATCH --mail-user=user@fredhutch.org
 #SBATCH --mail-type=END,FAIL
 
-# Initialize module system in scripts
+set -euo pipefail   # fail fast on errors and unset vars
+
+# Initialize module system, then PURGE before loading — guarantees a clean env
+# regardless of what the submitting shell had loaded.
 source /app/lmod/lmod/init/profile
+module purge
 module load Python/3.11.3-GCCcore-12.3.0
 
 python my_analysis.py
 ```
+
+`module purge` matters even on rhino-class compute nodes: `sbatch` inherits the submitting shell's environment by default (`--export=ALL`), so any module the user had loaded leaks into every job. `module purge && module load <pinned-version>` makes the job's environment a function of the script alone — required for reproducibility, and required for harmony / chorus jobs because their OS differs from rhino. To start from a truly empty environment, also pass `--export=NONE` to `sbatch` (or set it in the script via `#SBATCH --export=NONE`); this reads only `~/.bashrc`/login files on the compute node.
 
 Submit with: `sbatch myscript.sh`
 
@@ -149,6 +156,13 @@ sbatch --array=1-3 myjob.sh
 sbatch --array=4-100 myjob.sh
 ```
 
+**Throttle concurrency with `%N`.** A 1000-task array submitted unthrottled will try to consume the entire fair-share budget at once and may starve smaller jobs and your own subsequent submissions:
+```bash
+# At most 20 tasks running concurrently
+sbatch --array=1-1000%20 myjob.sh
+```
+Pick `%N` based on per-task resource cost and how aggressive you want to be: 10–25 is usually a good neighbor on `campus-new`; on `restart-new`, higher is fine because you're using preemptible capacity.
+
 **Skip completed work.** When rerunning after partial failure or code changes that only affect a subset, avoid repeating work that already succeeded:
 ```bash
 #!/bin/bash
@@ -231,6 +245,17 @@ python train.py --checkpoint "$CHECKPOINT"
 
 By default, stdout and stderr are captured in `slurm-<jobID>.out` in the submission directory. Customize with `-o` and `-e` flags.
 
+**Log placement matters for arrays.** A 1000-task array writing into `$HOME` or the project root creates 1000 small files in a metadata-hot location, which slows down `ls`, syncing tools, and editor file watchers across the lab. Recommended pattern:
+
+```bash
+#SBATCH --output=logs/%x_%j.out          # single jobs
+#SBATCH --output=logs/%x_%A_%a.out       # array jobs (%A = array job id, %a = task id)
+```
+
+Create `logs/` ahead of time (`mkdir -p logs`) — Slurm will not create the directory and will fail to write the log if it doesn't exist, which is silent and infuriating. For very large fan-outs (>10 000 tasks), shard the log directory by task-id prefix (`logs/array_<jobid>/<task>/...`) or aggregate into a single `slurm.tsv` from the application side.
+
+`%x` (job-name) and `%A`/`%a` (array-id, task-id) are the placeholders to know — `%j` is fine for non-array jobs but produces ambiguous filenames inside an array.
+
 ### Slurm Environment Variables
 
 Use these inside your job scripts:
@@ -271,6 +296,18 @@ sys.path.insert(0, str(HERE))
 ```
 
 Related: `#SBATCH --output=%x_%j.out` is also interpreted relative to `$SLURM_SUBMIT_DIR`, not to the script's location. Pass an absolute path if you want logs elsewhere.
+
+### Recording reproducibility metadata
+
+For any job whose output you'll cite, log the execution environment alongside the results. The `fh.reproducibility` skill carries the full sbatch scaffold (git commit, dirty flag, module list, lockfile snapshot) — short version:
+
+```bash
+echo "Job: $SLURM_JOB_ID  Node: $SLURMD_NODENAME  Date: $(date -Iseconds)"
+echo "Git: $(git rev-parse HEAD)$([ -n "$(git status --porcelain)" ] && echo ' (DIRTY)')"
+module list 2>&1
+```
+
+Pipe this into a `provenance.txt` next to your output, or stream it to the slurm log. See `fh.reproducibility` for the full pattern (RNG seeds, container digests, lockfile capture).
 
 ### Workflow Managers
 

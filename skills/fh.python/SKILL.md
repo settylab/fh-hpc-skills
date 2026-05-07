@@ -55,7 +55,7 @@ uv run --with numpy --with pandas my_script.py
 uvx ruff check .
 ```
 
-Commit both `pyproject.toml` and `uv.lock` to version control. The lockfile pins every transitive dependency with hashes, ensuring reproducibility.
+Commit both `pyproject.toml` and `uv.lock` to version control. The lockfile pins every transitive dependency with hashes, ensuring reproducibility. For the broader pinning checklist (module versions, container digests, RNG seeds, agent-generated-code risks), see `fh.reproducibility`.
 
 ### Loading Python via Lmod Modules
 

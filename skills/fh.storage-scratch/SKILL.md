@@ -1,10 +1,10 @@
 ---
-description: "Using /hpc/temp/ scratch and task-optimized temporary storage at Fred Hutch"
+description: "Scratch and task-optimized storage at Fred Hutch — /hpc/temp (NFS, 30-day purge, bulk-read winner), $TMPDIR / /tmp / $SCRATCH_LOCAL (node-local NVMe on gizmok* but ~10x slower on gizmoj*), /dev/shm (tmpfs/RAM), and /fh/working (long-lived working copies). Covers the staging-copy pattern for I/O-heavy jobs."
 ---
 
 # Scratch and Temporary Storage
 
-TRIGGER when: user asks about scratch storage, temp storage, /hpc/temp, temporary files, job-local storage, working storage, or intermediate compute files
+TRIGGER when: user asks about scratch storage, temp storage, /hpc/temp, $TMPDIR, /tmp, /loc/scratch, $SCRATCH_LOCAL, /dev/shm, tmpfs, node-local storage, staging input data, intermediate compute files, /fh/working, or working storage on the cluster
 
 ## Context
 
@@ -13,6 +13,25 @@ Fred Hutch provides several temporary/task-optimized storage options for interme
 **CRITICAL: Do not store the primary or only copy of any dataset in temp storage. Always ensure a durable copy exists in Fast or Economy/S3.**
 
 Note: the old network-scratch path `/fh/scratch/delete{10,30,90}/` has been fully decommissioned. `/hpc/temp/` is the sole replacement.
+
+## Quick decision guide (free-to-choose case)
+
+If you are NOT in a sandbox with restricted writes — i.e., you can pick any path on the cluster — match the workload shape against this table. All claims below are grounded in the Apr-2026 weekly fleet benchmark (n=28, full table further down).
+
+| Workload shape | Primary choice | Why |
+|---|---|---|
+| Read one big file sequentially (load 100 GiB matrix, alignment input, model checkpoint) | `/hpc/temp/` | Median read 565 MiB/s, ~40 % above `/fh/fast/` and `/fh/working/`. **Load-insulated** (ρ ≈ 0 across 0.44–0.90 cluster load). |
+| Write one big file sequentially (bulk output, large checkpoint) | `/fh/working/` | Median write 278 MiB/s, beats `/fh/fast/` (223) and `/hpc/temp/` (202). Unlike `/fh/fast/`, no observed load-sensitivity on writes. |
+| Many small files: pip caches, conda envs, R libraries, build trees, per-cell pickles | `/fh/working/` (then `/fh/fast/`) | Metadata 4.0 s/1000 files vs 4.6 (`fast`) and 10.4 (`temp`). `/hpc/temp/` is ~2.5× slower on metadata — avoid. |
+| Long-term storage of analytical artifacts (notebooks, manuscripts, figures, derived data you'll cite) | `/fh/fast/` | Daily backup + offsite replication (`/fh/working/` and `/hpc/temp/` are not backed up). See `fh.storage-fast`. |
+| Job-local scratch, single-job lifetime, on `gizmok*` | `$TMPDIR` (NVMe `/tmp`) | ~2 GiB/s, ~7800 random ops/s — beats every NFS tier on every metric. |
+| Job-local scratch, single-job lifetime, on `gizmoj*` | **stay on `/fh/working/` or `/fh/fast/`** | NVMe is not present on `j` nodes; `/tmp` is ~205 MiB/s and ~235 random ops/s — staging copies *for random reads* is a 12–15× loss. |
+| In-memory dataset that fits in RAM (sorting, intermediate index, small-but-hot file) | `/dev/shm/` | Median read 5397 MiB/s, random reads 412 016 ops/s. **Counts against `--mem`** — request enough for app + tmpfs. |
+| Working-dir during interactive `grabnode` / `srun --pty` development | `/fh/working/` (project tree) or `/fh/fast/user/$USER` (user tree) | Both are session-persistent. `/hpc/temp/` is fine for a scratch session as long as no 30-day-purge file is the only copy. |
+
+**Sandbox-constrained case** (the agent-sandbox restricts writes outside `/fh/fast/`, `/hpc/temp/`, and `~/.claude/`): use `/hpc/temp/setty_m/$USER/` for transient scratch, `/fh/fast/setty_m/user/$USER/` for durable outputs. The free-to-choose rules above still apply *within* those two paths; you just can't reach `/fh/working/`, `/dev/shm/`, or node-local `/tmp` directly from the sandboxed shell. Inside an `sbatch` job submitted *from* the sandbox, the job runs unsandboxed on the compute node and can use any of the above.
+
+When the data doesn't support a strong claim (e.g., random 4 KiB reads on the three NFS tiers are within ~30 %, ordering swaps run-to-run), don't optimise — pick the durability/lifecycle tier that fits and move on.
 
 ## Storage Options
 
@@ -119,23 +138,35 @@ Tier-level summary (latency/throughput class):
 | `/fh/working` | ~ms | NFSv3, 128 KiB / 512 KiB | Yes (cluster-wide) | No purge | 20 TB |
 | `/fh/fast` | ~ms | NFSv3, 128 KiB / 512 KiB | Yes (cluster-wide) | Persistent | PI quota |
 
-Measured on a rhino node (median of 3 reps; full script + caveats: `docs/benchmarks/storage_bench.py`):
+Measured across the cluster fleet over a week (n=28 Slurm runs across 21 distinct gizmo nodes, 4 scheduled slots/day, Apr 18–24 2026; median [IQR]). Full report: `docs/benchmarks/storage_performance.md`. Raw long-form: `docs/benchmarks/weekly_summary.tsv`.
 
-| Metric | `/fh/fast` | `/hpc/temp` | `/fh/working` | `/tmp` (NVMe) | `/dev/shm` (tmpfs) |
-|---|---|---|---|---|---|
-| Sequential write (MiB/s) | 216 | 212 | 245 | 2174 | **2320** |
-| Sequential read (MiB/s)  | 395 | 556 | 375 | 1864 | **4408** |
-| Metadata (s / 1000 files) | 5.2 | 11.7 | 5.1 | **0.07** | **0.06** |
-| Random 4 KiB reads (ops/s) | 2433 | 2025 | 1873 | 7809 | **256 395** |
+| Metric | `/fh/fast` | `/hpc/temp` | `/fh/working` | `/tmp` (gizmok* NVMe) | `/tmp` (gizmoj*) | `/dev/shm` |
+|---|---|---|---|---|---|---|
+| Sequential write (MiB/s) | 223 [204–234] | 202 [193–210] | **278** [250–306] | **2144** [2038–2209] | 204 [186–209] | **2426** [2291–2489] |
+| Sequential read (MiB/s)  | 335 [284–357] | **565** [532–580] | 416 [337–492] | 1824 [1813–1827] | 218 [215–227] | **5397** [5073–5773] |
+| Metadata (s / 1000, lower = faster) | 4.6 [4.4–4.9] | 10.4 [8.0–12.0] | **4.0** [3.3–4.5] | 0.06 [0.05–0.17] | 0.08 [0.06–0.08] | **0.05** [0.04–0.05] |
+| Random 4 KiB reads (ops/s) | 2933 [2768–3045] | 2075 [1787–2273] | **2954** [2214–3380] | **7824** [7710–7903] | 235 [230–239] | **412 016** [343 806–491 207] |
 
-**Takeaways:**
+**Takeaways (per the Apr-2026 weekly benchmark):**
 
-- `/dev/shm` beats disk by 10× on throughput and 70–100× on metadata/random I/O, but it consumes your Slurm `--mem` allocation.
-- Local `/tmp` (NVMe SSD on rhino; on gizmo nodes it is `$TMPDIR` / `$SCRATCH_LOCAL`) is 9× faster than any NFS tier for sequential I/O and ~70× faster on metadata. Use it for I/O-heavy single-node jobs.
-- Among NFS tiers, `/hpc/temp` has the best bulk sequential read (1 MiB block size), but ~2× slower metadata than `/fh/fast` or `/fh/working`. For many-small-files workloads, prefer `/fh/fast` or stage to `$TMPDIR`.
-- `/fh/working` and `/fh/fast` track very close to each other (same NFS block size, similar Isilon/Osmium backends).
+- `/dev/shm` beats every disk-backed surface by 5×–100× on every metric; consumes your job's `--mem` allocation.
+- **`/tmp` is bimodal across the gizmo fleet.** Every `gizmok*` node tested has fast NVMe (~2 GiB/s, ~7800 random ops/s, beats every NFS tier). Every `gizmoj*` node tested is ~10× slower across all metrics (~205 MiB/s, ~235 random ops/s). Same `--tmp` Slurm request, very different storage tier — see "Per-node variance" below.
+- Among NFS tiers: `/hpc/temp` is the **bulk sequential read winner** (median 565 MiB/s, ~40 % above `/fh/fast/` and `/fh/working/`) and is the only NFS tier whose seq-read throughput is **insulated from cluster load** (Spearman ρ = +0.00 over 0.44–0.90 load). `/fh/working` is the **bulk write and metadata winner** (278 MiB/s write, 4.0 s metadata), but is the most load-sensitive on bulk reads (ρ = −0.60, p = 7×10⁻⁴ — the Osmium head visibly degrades under heavy cluster load).
+- Random 4 KiB reads on the three NFS tiers are within ~30 % of each other; `/fh/fast/` and `/fh/working/` are roughly tied at ~2940 ops/s, `/hpc/temp/` is ~30 % lower at 2075.
+- The `shm > localtmp > NFS` ordering is rock-solid run-to-run. **Within the three NFS tiers, ordering swaps freely** — especially on random reads, where the median ordering matches only 18 % of single runs. Don't quote a single-run NFS-tier ranking as fact.
 
-Numbers are single-host, single-run; rerun under your own load before relying on them for capacity planning. See `docs/benchmarks/storage_performance.md` for the full report.
+### Per-node variance on `/tmp` — the `gizmoj` / `gizmok` cohort split
+
+The Apr-2026 fleet split 14:14 between `gizmoj*` and `gizmok*` runs. Every `gizmoj*` host observed (8 distinct: j1, j7, j15, j16, j19, j22, j28, j35) is ~10× slower on `/tmp` than every `gizmok*` host observed (13 distinct: k2, k8, k10, k18, k29, k61, k64, k100, k112, k116, k124, k138, k140). Same Slurm `--tmp` request lands on very different hardware.
+
+Operational implication: the "stage to `$TMPDIR`" advice below is **conditional on landing on a `gizmok*` node**. On a `gizmoj*` node:
+
+- Staging *write* (~205 MiB/s) is slower than `/fh/working/` (278) and roughly tied with `/fh/fast/` (223) — the staging-copy round trip is wasted time.
+- *Random-read* on `/tmp` is **15× slower than `/fh/fast/`** (235 vs 2933 ops/s). Staging an input for random-read workloads on a `gizmoj` node is a net loss.
+
+If random-read latency is critical, prefer Slurm node features/constraints to land on `gizmok*` (or stay on `/fh/working/`/`/fh/fast/`) over relying on `$TMPDIR` being uniformly fast. Spot-check unobserved nodes before trusting the cohort generalization.
+
+Numbers are population medians+IQR across the weekly fleet, not a single host. Different week → different cluster load distribution → different exact slopes; rerun under your own load before bet-the-paper decisions. See `docs/benchmarks/storage_performance.md` for the full report and figures.
 
 ### Cloud Scratch (S3)
 
