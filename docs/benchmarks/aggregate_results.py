@@ -6,6 +6,12 @@ them by tag, and emits a wide TSV to stdout (or --output).
 
 Use for post-hoc analysis: median per filesystem per load bucket,
 variance over a week, etc.
+
+Skipped inputs are logged to stderr (one line per skip + a final count):
+summaries whose filename does not match the expected ``YYYYMMDD_HHMMSS_host_jobid``
+tag pattern, and cluster JSON files that fail to parse. A worker that dies
+mid-run can leave a partial set; the count line lets you sanity-check n
+against the expected fleet size before downstream analysis.
 """
 
 import argparse
@@ -13,6 +19,7 @@ import glob
 import json
 import os
 import re
+import sys
 from collections import defaultdict
 
 
@@ -52,11 +59,16 @@ def main():
     rows = []
     all_metrics = set()
     all_fs = set()
+    n_skipped_tag = 0
+    n_aggregated = 0
 
     for sfile in summaries:
         base = os.path.basename(sfile).replace("_summary.tsv", "")
         m = TAG_RE.match(base)
         if not m:
+            print(f"warn: skipping {sfile} — filename does not match tag regex",
+                  file=sys.stderr)
+            n_skipped_tag += 1
             continue
         ts, host, jobid = m.groups()
         cstate_path = os.path.join(args.results, f"{base}_cluster.json")
@@ -65,8 +77,13 @@ def main():
             try:
                 with open(cstate_path) as f:
                     cstate = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as exc:
+                print(f"warn: cluster json unreadable for {base}: {exc}",
+                      file=sys.stderr)
+        else:
+            print(f"warn: no cluster json for {base} — load fields will be blank",
+                  file=sys.stderr)
+        n_aggregated += 1
 
         data = parse_summary(sfile)
         for (fs, metric), val in data.items():
@@ -88,7 +105,7 @@ def main():
         "timestamp", "host", "jobid", "fs", "metric", "value",
         "slurm_cpus_alloc", "slurm_cpus_total", "this_node_load15",
     ]
-    out = open(args.output, "w") if args.output != "-" else __import__("sys").stdout
+    out = open(args.output, "w") if args.output != "-" else sys.stdout
     try:
         out.write("\t".join(cols) + "\n")
         for r in rows:
@@ -96,6 +113,12 @@ def main():
     finally:
         if args.output != "-":
             out.close()
+
+    print(
+        f"summaries scanned={len(summaries)} aggregated={n_aggregated} "
+        f"skipped_tag_mismatch={n_skipped_tag}",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

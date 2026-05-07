@@ -164,11 +164,17 @@ Mann-Whitney with Benjamini-Hochberg correction across all pairs.
 
 **Takeaway: no actionable time-of-day effect at this sample size.** The
 single Kruskal-Wallis hit on `temp` random reads doesn't survive the
-follow-up. Per-bucket cluster load also overlaps strongly across all
-four scheduled times, so the buckets don't even cleanly separate the
-load axis: `--begin` only sets a lower bound, and Slurm fills in based
-on resources, not wall clock. Repeated weeks (or fixed-load buckets
-constructed post-hoc) would be a better instrument.
+follow-up. The 20 KW screens (5 fs × 4 metrics) are themselves *not*
+BH-corrected — but at raw α=0.05 we'd expect ~1 false positive across
+20 tests by chance, and a single p=0.037 would not survive a 20-test
+BH at q<0.10 either, so the "no effect" reading is robust. The
+load-bearing claim is the per-fs pairwise Mann-Whitney ladder, which
+*is* BH-corrected and yields zero hits at q<0.10. Per-bucket cluster
+load also overlaps strongly across all four scheduled times, so the
+buckets don't even cleanly separate the load axis: `--begin` only sets
+a lower bound, and Slurm fills in based on resources, not wall clock.
+Repeated weeks (or fixed-load buckets constructed post-hoc) would be a
+better instrument.
 
 KW table: `docs/benchmarks/time_of_day_kw.tsv`.
 Pairwise MWU table: `docs/benchmarks/time_of_day_mwu.tsv`.
@@ -198,7 +204,7 @@ Summary: `docs/benchmarks/ordering_robustness_summary.tsv`.
 | File | Content |
 |---|---|
 | `figures/fig1_box_per_fs.png` | Box + strip per (fs, metric) across the 28 weekly runs. |
-| `figures/fig2_nfs_vs_load.png` | NFS metrics vs cluster load. 4×3 panels, Spearman ρ + p annotated. |
+| `figures/fig2_nfs_vs_load.png` | NFS metrics vs cluster load. 3×4 panels (3 NFS tiers × 4 metrics), Spearman ρ + p annotated. |
 | `figures/fig3_localtmp_per_host.png` | Per-host `localtmp` strip plot. The `gizmoj` / `gizmok` cohorts visually separate. |
 | `figures/fig4_time_of_day.png` | Box per `--begin` bucket per fs, NFS + localtmp panels. |
 | `figures/fig5_ordering_heatmap.png` | Per-run filesystem rank, four metrics. |
@@ -210,7 +216,7 @@ Summary: `docs/benchmarks/ordering_robustness_summary.tsv`.
 |---|---|---|
 | Read one big file sequentially (alignment, bulk matrix load) | `/hpc/temp/` | Median 565 MiB/s read, load-insulated |
 | Many small files (per-cell, per-sample, per-iteration) | `/fh/working/` (then `/fh/fast/`) | 2.5× faster metadata than `/hpc/temp/` |
-| Random 4 KiB reads | `/fh/fast/` or `/fh/working/` (≈ tied) | `/hpc/temp/` is ~30 % slower |
+| Random 4 KiB reads | `/fh/fast/` or `/fh/working/` (≈ tied) | `/hpc/temp/` delivers ~30 % fewer ops/s (throughput, not per-op latency) |
 | I/O-heavy single-node, on `gizmok*` | `$TMPDIR` (NVMe) | ~2 GiB/s, ~7800 random ops/s — beats every NFS tier |
 | I/O-heavy single-node, on `gizmoj*` | **stay on `/fh/working/`** | NVMe is not present; `/tmp` is ~205 MiB/s and ~235 random ops/s |
 | In-memory fits in RAM | `/dev/shm/` (and budget `--mem`) | RAM speed |
