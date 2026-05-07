@@ -1,0 +1,13 @@
+fs	metric	n	spearman_rho	p_value	load_min	load_max
+fast	seq_write_MiBs	28	-0.4269	0.0235	0.4383	0.8959
+fast	seq_read_MiBs	28	-0.3738	0.0500	0.4383	0.8959
+fast	metadata_s	28	-0.2467	0.2057	0.4383	0.8959
+fast	random_read_ops	28	-0.0542	0.7842	0.4383	0.8959
+temp	seq_write_MiBs	28	-0.1407	0.4752	0.4383	0.8959
+temp	seq_read_MiBs	28	0.0044	0.9824	0.4383	0.8959
+temp	metadata_s	28	0.0980	0.6199	0.4383	0.8959
+temp	random_read_ops	28	-0.0109	0.9559	0.4383	0.8959
+working	seq_write_MiBs	28	-0.1390	0.4805	0.4383	0.8959
+working	seq_read_MiBs	28	-0.6010	0.0007	0.4383	0.8959
+working	metadata_s	28	0.1654	0.4003	0.4383	0.8959
+working	random_read_ops	28	-0.1582	0.4214	0.4383	0.8959
