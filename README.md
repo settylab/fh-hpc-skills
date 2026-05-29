@@ -6,7 +6,7 @@ A Claude Code skill plugin for the Fred Hutchinson Cancer Center HPC cluster (Gi
 
 Claude Code loads skills based on what you're doing. Ask about submitting a Slurm job, and it loads `fh.slurm`. Ask about GPU availability, and it loads `fh.gpu` and `fh.monitoring`. Each skill is a focused document covering one topic with commands, examples, pitfalls, and references.
 
-36 skills cover the full surface area of the Fred Hutch HPC, plus lab-specific conventions under the `setty.*` and `settylab.*` namespaces:
+38 skills cover the full surface area of the Fred Hutch HPC, plus lab-specific conventions under the `setty.*` and `settylab.*` namespaces:
 
 | Skill | Description |
 |-------|-------------|
@@ -43,7 +43,9 @@ Claude Code loads skills based on what you're doing. Ask about submitting a Slur
 | `fh.testing` | pytest, testthat, nf-test, snapshot testing, CI, practical priorities |
 | `fh.vscode-remote` | VS Code remote on compute nodes, Lmod integration |
 | `fh.workflows-overview` | Nextflow vs Snakemake vs WDL, portability stack, cloud bursting |
+| `setty.conclusion-skeptic` | Skeptic verification for surprising/strong/sweeping/negative results: bug check, fairness, effect-size plausibility, contradicted literature, upstream-assumption trace. Sibling of `setty.ms-audit`. |
 | `setty.labsh` | Project-local JupyterLab with CLI-driven stateful kernels for iterative analysis on slow-to-load data |
+| `setty.ms-audit` | Audit a manuscript against its implementation during paper review — read paper and code in parallel, surface formula/dimension/parameter divergences via a skeptic-confirmed report |
 | `setty.plots` | Setty Lab plot aesthetics: matplotlib/seaborn/scanpy styling, Helvetica/Arial, Paired palette, Illustrator handoff, palantir/kompot plot references |
 | `settylab.sandbox-gotchas` | Sandbox-specific HPC notes: `/app/bin/pip` wrapper hangs (use `uv pip`), Slurm `sacct`/`squeue` auto-scope, cross-repo bot push form |
 
