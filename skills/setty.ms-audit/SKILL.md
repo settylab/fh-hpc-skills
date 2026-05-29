@@ -8,7 +8,7 @@ TRIGGER when: the user is reviewing a paper or manuscript and asks to audit the 
 
 This skill is the cross-cutting check that nobody runs because each side feels like someone else's job — yet it is where the worst bugs hide, because each side looks internally consistent.
 
-Ported from `matsen/bipartite/skills/bip-ms-audit` (the upstream skill the Setty Lab kompot audit consumed) by the Setty Lab on 2026-05-28. Adapted to drop bipartite-specific `.ms-config.json` / `tracked_repos[]` infrastructure, replace `@surprising-conclusion-skeptic` with a general-purpose skeptic subagent, and add the 4-tier severity taxonomy and `REFUTED` verdict that the kompot audit surfaced.
+Ported from `matsen/bipartite/skills/bip-ms-audit` by the Setty Lab on 2026-05-28. Adapted to drop bipartite-specific `.ms-config.json` / `tracked_repos[]` infrastructure, route the skeptic verification step through the sibling `setty.conclusion-skeptic` skill (also ported in the same PR), and add the 4-tier severity taxonomy and `REFUTED` verdict surfaced by real-world audit experience.
 
 ## Core principle
 
@@ -77,26 +77,15 @@ If any subagent's report has many findings (say >5 in a 10-claim section), treat
 
 ### Step 4: Skeptic confirmation for every non-MATCH finding
 
-For each non-`MATCH` finding, spawn a fresh `general-purpose` subagent as a skeptic — separate context, no prior commitments — and brief it to **try to refute** the finding. This step is the difference between a useful audit and one that cries wolf; never skip it for a finding you intend to surface to the user.
+For each non-`MATCH` finding, route through the sibling skill **`setty.conclusion-skeptic`** — spawn a fresh `general-purpose` subagent, hand it the skeptic skill body, and brief it on the specific finding to refute. Separate context, no prior commitments. This step is the difference between a useful audit and one that cries wolf; never skip it for a finding you intend to surface to the user.
 
-Skeptic brief:
+Brief the skeptic with the finding plus the explicit alternatives `setty.conclusion-skeptic` enumerates (bug in the auditor's reading, two code paths equivalent under a specific construction, dead-code branch, paper-typo-not-code-bug). The skeptic's checklist runs end-to-end; you just need to provide the artifact under review:
 
-> You are a skeptic. Your job is to refute, not confirm, the finding below. Read the paper context, read the code in full with `Read`, and rule out simpler explanations before agreeing the finding is real.
+> **Finding to audit**: <verdict, paper claim + `file:line`, code location + `file:line`, suggested mismatch>
 >
-> **Finding**: <verdict, paper claim + line, code location + line, suggested mismatch>
->
-> Explicitly evaluate these alternatives:
->
-> - Maybe the auditor misread the paper.
-> - Maybe the auditor misread the code (a downstream rebinding, a default override, a kwarg shadowing).
-> - Maybe the two code paths are actually equivalent due to a specific construction (algebraic identity, broadcasting, masking).
-> - Maybe one of them is dead code or only runs under a branch that never fires in practice.
-> - Maybe the variable names mean something different in this context than the auditor thinks.
-> - **`REFUTED`** — Maybe the paper has a typo / off-by-one / wrong sign and the code is the source of truth (a Setty-lab-frequent outcome — surface this verdict explicitly).
->
-> Return: `CONFIRMED` | `PARTIALLY CONFIRMED <qualification>` | `REFUTED <why>` plus the `file:line` citations you read.
+> **Audit mode**: manuscript-vs-implementation. The relevant verdicts from `setty.conclusion-skeptic` are `CHECK FIRST` (keep the finding with concerns documented), `SUSPECT` (keep), `REFUTED` (paper has the typo, route as paper edit), or `CREDIBLE` (no concerns — drop the finding from the report). The skeptic should return the verdict plus the `file:line` citations it read.
 
-`CONFIRMED` → keep the finding. `REFUTED` → drop it from the report (or escalate as a paper typo if the skeptic flagged that). `PARTIALLY CONFIRMED` → keep with the qualification in the report.
+`CREDIBLE` from the skeptic → the auditor was wrong, drop the finding. `REFUTED` → paper has the typo, surface as a `REFUTED` entry in the report (Step 5/6). `SUSPECT` or `CHECK FIRST` → keep the finding with the skeptic's concerns/qualifications inlined.
 
 ### Step 5: Apply the severity taxonomy
 
@@ -110,7 +99,7 @@ Sort the surviving findings into four severity tiers. The split drives both repo
 | **NIT** | Typo, inconsistent notation across sections, missing reference to an obvious citation. | Cluster into a single "minor revisions" list. |
 | **REFUTED** | Skeptic identified the paper as having the typo / wrong sign; code is correct. | Paper edit only. Surface separately so the user sees them. |
 
-The kompot audit (worked example, settylab/dotto-nexus#142) caught 3 BLOCKERs (Mahalanobis denominator, DA PTP factor, FDR taxonomy), 3 MAJORs, and 5 MINOR/NIT findings via this exact methodology — illustrative of the expected severity distribution from a thorough audit of a method paper.
+This methodology has been validated on real-world manuscript audits that surfaced multiple BLOCKER findings (an incorrect distance-metric denominator, a wrong scaling factor in a differential-abundance test, a misapplied FDR-correction taxonomy) alongside MAJOR parameter-default drifts and a handful of MINOR/NIT items. That mix — a few load-bearing BLOCKERs, several MAJORs, a long tail of MINORs — is the expected severity distribution from a thorough audit of a method paper.
 
 ### Step 6: Write the report
 
@@ -148,7 +137,7 @@ mutations = np.full(
 
 Allocates `max_n_nodes` ≈ 2n-2 entries — paper's `(n-3)` is too small.
 
-**Skeptic verdict**: CONFIRMED (cited `file:line`, ruled out the "pendant edges always zero" alternative).
+**Skeptic verdict** (`setty.conclusion-skeptic`): SUSPECT (cited `file:line`, ruled out the "pendant edges always zero" alternative).
 
 **Suggested action**: change paper to `(2n-3) × N × 4` and clarify "indexed by non-root nodes."
 
@@ -164,7 +153,7 @@ Allocates `max_n_nodes` ≈ 2n-2 entries — paper's `(n-3)` is too small.
 
 **Code** (`pkg/distance.py:91`): uses `σ²` (no factor of 2).
 
-**Skeptic verdict**: REFUTED — code matches the standard textbook form (Mahalanobis distance is `(x-μ)ᵀ Σ⁻¹ (x-μ)`, no 2 in the denominator). The `2σ²` in the paper is a typo carried over from a Gaussian PDF derivation in the previous paragraph.
+**Skeptic verdict** (`setty.conclusion-skeptic`): REFUTED — code matches the standard textbook form (Mahalanobis distance is `(x-μ)ᵀ Σ⁻¹ (x-μ)`, no 2 in the denominator). The `2σ²` in the paper is a typo carried over from a Gaussian PDF derivation in the previous paragraph.
 
 **Suggested action**: paper edit to drop the `2`.
 ```
@@ -195,6 +184,7 @@ Show the report path. Offer:
 
 | Need | Skill |
 |---|---|
+| Skeptic verification of a surprising finding (the mandatory Step 4 of this skill) | `setty.conclusion-skeptic` |
 | Test scientific code (pytest, testthat, nf-test) | `fh.testing` |
 | Reproducibility hygiene (pin versions, container digests) | `fh.reproducibility` |
 | Setty Lab plot conventions for figures | `setty.plots` |
