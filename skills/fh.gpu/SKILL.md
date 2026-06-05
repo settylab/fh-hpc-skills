@@ -109,6 +109,51 @@ if epoch % save_every == 0:
 
 On job start, check for existing checkpoints and resume from the latest one instead of restarting from scratch.
 
+### Troubleshooting: `torch.cuda.is_available()` is False even though `nvidia-smi` works
+
+**Symptom.** On a GPU node (including chorus L40S), `nvidia-smi` shows the GPU,
+`/dev/nvidia*` exist, and the Slurm allocation is correct — yet
+`torch.cuda.is_available()` returns `False` and PyTorch logs `Found no NVIDIA
+driver on your system`. The raw CUDA *driver* API (`cuInit`/`cuCtxCreate`) and a
+**full-path** `dlopen` of `libcuda.so.1` both succeed.
+
+**Root cause.** The Python interpreter your venv was built on is **linuxbrew
+Python** (`~/.linuxbrew/.../bin/python3.x`). Linuxbrew ships its own glibc
+dynamic loader with an RPATH into the linuxbrew tree and **no system
+`ld.so.cache`**. So `dlopen("libcuda.so.1")` **by soname** never consults
+`/etc/ld.so.cache`, where the NVIDIA driver libs are registered — and those libs
+live only in the system tree. The load fails by soname (same for
+`libnvidia-ml.so.1` — general to any system-only lib, not CUDA-specific), so
+torch/cudart report no driver. A full-path load works, which is exactly why
+`nvidia-smi` and the driver API are fine while torch is not. **This is not a
+sandbox bug and not a missing `/dev/nvidia-uvm`** — it reproduces outside any
+sandbox; the GPU, driver, `/dev/nvidia*`, and Slurm GPU cgroup are all healthy.
+
+**1-line diagnostic.** `nvidia-smi` works but `torch.cuda.is_available()` is
+False with "Found no NVIDIA driver" → check whether the venv's python is
+linuxbrew (so its loader can't see `/etc/ld.so.cache`):
+```bash
+python -c 'import sys; print(sys.executable)'   # /home/$USER/.linuxbrew/... → that's the cause
+```
+
+**Fix.** Build the GPU venv on the **system** interpreter, whose system glibc
+loader consults `/etc/ld.so.cache` → driver libs resolve by soname → `torch.cuda`
+works with **no `LD_PRELOAD`**. On chorus that is `/usr/bin/python3.12`:
+```bash
+uv venv .venv-gpu --python /usr/bin/python3.12   # run on the chorus node
+source .venv-gpu/bin/activate
+uv pip install "torch==2.6.0+cu124" ...          # match torch's cuXXX to the node driver
+```
+Trade-off: a system-python venv is **node-OS-specific** (a chorus py3.12 venv
+won't import on an 18.04 login node) and bound to that python version. Pin it
+(freeze a lockfile) and rebuild per target OS.
+
+**Interim workaround** (if you must stay on a linuxbrew-Python venv): preload the
+driver lib by full path so the soname is already resolved before torch looks —
+```bash
+export LD_PRELOAD=$(readlink -f /usr/lib/x86_64-linux-gnu/libcuda.so.1)
+```
+
 ## Principles
 
 - Request only the GPUs you need. Most training jobs need 1 GPU.
