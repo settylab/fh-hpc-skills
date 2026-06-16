@@ -104,26 +104,57 @@ Every skill upholds these values:
 
 ## Installation
 
-### Quick install (clone into ~/.claude)
+### Recommended: one-command bootstrap
 
-Cloning into `~/.claude/` ensures skills are accessible inside the [agent_sandbox](https://github.com/katosh/agent_sandbox), which mounts `~/.claude` as writable by default. No extra sandbox configuration needed.
+[`bootstrap.sh`](bootstrap.sh) sets up all three pieces a fresh environment needs
+— the clone, the skill symlinks, and the [labsh](https://github.com/katosh/labsh)
+CLI — and is **idempotent, interruption-safe, and concurrency-safe**: re-running
+a complete install is a no-op, a crashed/interrupted run completes on the next
+invocation, and two simultaneous opens converge cleanly (advisory `flock`).
+Run it **outside** the agent_sandbox (so it writes to the real `~/.claude`).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/settylab/fh-hpc-skills/main/bootstrap.sh | bash
+```
+
+Cloning into `~/.claude/` ensures skills are accessible inside the
+[agent_sandbox](https://github.com/katosh/agent_sandbox), which mounts
+`~/.claude` writable by default. No extra sandbox configuration needed.
+
+Once cloned, re-run it any time to **verify-and-repair** the install:
+
+```bash
+~/.claude/fh-hpc-skills/bootstrap.sh            # repair anything missing/broken
+~/.claude/fh-hpc-skills/bootstrap.sh --check    # verify only (nonzero if incomplete)
+~/.claude/fh-hpc-skills/bootstrap.sh --skip-labsh   # skills + symlinks only
+```
+
+The bootstrap is fully overridable via environment variables (`FHHS_REPO_DIR`,
+`FHHS_SKILLS_DIR`, `FHHS_REMOTE`, `FHHS_LOCK_DIR`, `FHHS_LABSH_BIN`, …) — see the
+header of [`bootstrap.sh`](bootstrap.sh). Its robustness suite lives at
+[`tests/test_bootstrap.sh`](tests/test_bootstrap.sh) (runs entirely against a
+throwaway `$HOME`; never touches your live install).
+
+### Manual install
+
+If you prefer to do it by hand (or only want a subset):
 
 ```bash
 git clone git@github.com:settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
+# (HTTPS fallback if you don't have SSH keys configured:)
+#   git clone https://github.com/settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
 
 # Symlink into the Claude Code config directory (respects custom CLAUDE_CONFIG_DIR).
-# Globs every namespace shipped here: fh.*, setty.*, settylab.*
+# Note `ln -sfn` (not `ln -sf`): on a re-run, plain `ln -sf` descends into an
+# existing directory symlink and nests a link inside it.
 SKILLS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
 mkdir -p "$SKILLS_DIR"
 for skill in ~/.claude/fh-hpc-skills/skills/*/; do
-  ln -sf "$skill" "$SKILLS_DIR/$(basename "$skill")"
+  ln -sfn "${skill%/}" "$SKILLS_DIR/$(basename "$skill")"
 done
-```
 
-If you don't have SSH keys configured for GitHub, use HTTPS instead:
-
-```bash
-git clone https://github.com/settylab/fh-hpc-skills.git ~/.claude/fh-hpc-skills
+# labsh (project-local JupyterLab CLI used by the setty.labsh skill):
+brew install katosh/tools/labsh
 ```
 
 ### Manual install (single skill)
@@ -137,6 +168,8 @@ cp -r ~/.claude/fh-hpc-skills/skills/fh.slurm "$SKILLS_DIR/"
 ### Verify installation
 
 ```bash
+~/.claude/fh-hpc-skills/bootstrap.sh --check
+# or, by hand:
 SKILLS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills"
 ls "$SKILLS_DIR"/*/SKILL.md
 ```
