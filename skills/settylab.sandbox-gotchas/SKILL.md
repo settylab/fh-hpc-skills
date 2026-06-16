@@ -61,8 +61,9 @@ If you genuinely need cross-user accounting, that's a job for the user on the un
 For one-shot pushes to a repo where you don't want to install a credential helper (or where the helper is already configured for a different identity), inject the token into the push URL once. The URL form bypasses the credential helper entirely:
 
 ```bash
-# Bot token (preferred for cross-repo writes; mint via the nexus helper)
-TOKEN=$(/fh/fast/setty_m/user/dotto/nexus/monitor/mint-token.sh)
+# Bot token (preferred for cross-repo writes; mint via the nexus helper,
+# run from your nexus root — the canonical invocation every nexus skill uses)
+TOKEN=$(./monitor/mint-token.sh)
 git push "https://x-access-token:${TOKEN}@github.com/<owner>/<repo>.git" <branch>
 
 # Or, for user-identity pushes (commit graph stays you):
