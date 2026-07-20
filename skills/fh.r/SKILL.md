@@ -121,6 +121,19 @@ Commit `renv.lock` to version control. This ensures anyone can recreate your exa
 
 Email scicomp@fredhutch.org to request additional R modules or package installations.
 
+### Single-cell R traps (Monocle 3, qs, anndataR)
+
+Hard-won gotchas from running R single-cell tooling in Setty Lab conda/module envs:
+
+- **Monocle 3 needs no install — it is an Lmod module** (`Monocle3/1.3.1-foss-2021b-R-4.2.2`; `library(monocle3)` works unmodified). Always `module avail <pkg>` before concluding a package is absent — testing `requireNamespace()` against the Bioconductor module and giving up is a common false negative.
+- **`ml`/`module` is a shell function — piping it silently discards the env-changing eval.** `ml Monocle3/... | tail` loads nothing and leaves `Rscript` not-found. Run `ml` unpiped, on its own line.
+- **Monocle 3 is non-deterministic across processes even at fixed `set.seed()`** — the stochasticity is in `cluster_cells → learn_graph → order_cells`, not the RNG. Same-seed runs correlate ρ≈0.79–0.95. Pinning all BLAS threads (`OMP_NUM_THREADS=OPENBLAS_NUM_THREADS=MKL_NUM_THREADS=FLEXIBLAS_NUM_THREADS=1`) tightens ρ to ~0.98 but a residual remains. Never report a Monocle 3 composite as a point estimate — run ≥10 draws (build PCA/UMAP once, repeat only the graph stage) and report median/IQR/min/max/n. `preprocess/reduce/cluster/learn_graph` are root-independent; only `order_cells` consumes the root, so build the principal graph once and order it N times. `learn_graph(use_partition=TRUE)` (the default) strands off-partition cells at `Inf` — check the partition count first.
+- **Reading classic `.qs` (Seurat/SCE) on R 4.2.3** (e.g. a conda `da2`-style env): magic `0b 0e 0a 0c` is the classic `qs` format (not `qs2`). `qs` is archived on CRAN — `remotes::install_version("qs","0.27.3")`, but **pin `stringfish==0.16.0` FIRST** (stringfish 0.19.0 removed `check_if_native_is_ascii`, which qs 0.27.3 still calls → compile failure). qs/stringfish need C++17 but many conda `Makeconf` bake `-std=gnu++14`; force it via `R_MAKEVARS_USER` (`CXX/CXX11/CXX14/CXX17 = <conda>-c++ -std=gnu++17`), and prepend the conda `bin` to PATH or compiles die `Error 127` (compiler not found).
+- **`scverse/anndataR` is unusable below R 4.5.0** (1.3.0 requires R ≥ 4.5). For lossless R→AnnData on older R, do a controlled manual export (MatrixMarket for matrices, CSV for tables, plus embeddings/graphs/coords and a JSON manifest via `Matrix`+`jsonlite`; assemble in Python) rather than reaching for anndataR.
+- **`renv::init` strict isolation hides base Seurat/SingleCellExperiment.** To load a project-installed `qs` *alongside* a base library, stack `.libPaths(c(<project-lib>, <base-lib>))` instead of activating renv.
+
+Sandbox-specific Python-stack traps (squidpy, Palantir, scIB) are in `settylab.sandbox-gotchas`.
+
 ## Principles
 
 - Use renv for project-level R dependency management and reproducibility

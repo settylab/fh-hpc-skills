@@ -113,6 +113,34 @@ Outside the shared node, the same applies to any `grabnode` or `srun
 releasing the allocation, or you're leaking memory in the remaining
 walltime.
 
+## Troubleshooting: "server already running" but nothing serves (phantom-adopt)
+
+**Symptom.** `labsh start` refuses with *"server is already running (pid
+NNNN…)"* and returns non-zero, yet no server actually answers — every
+health probe / `curl …/api/status` fails, and a supervisor that blindly
+retries `start` re-adopts the same dead record on each attempt (a
+multi-minute outage that never self-heals).
+
+**Cause.** labsh's *start-guard* decides a server is running by scanning
+`$JUPYTER_DATA_DIR/runtime/jpserver-*.json` and reading the recorded
+pid+url **without checking the pid is alive**. A crash or an abrupt node
+reboot leaves stale `jpserver-<deadpid>.json` records behind; the guard
+trusts them. Note the asymmetry: `labsh status` *does* liveness-check
+(shows "servers: none"), so **`status` and the `start` guard can
+disagree** — trust `status`.
+
+**Fix.**
+1. Confirm no live server: `labsh status` (and `labsh kernel ps`).
+2. For each stale record, verify its pid is dead (`kill -0 <pid>` /
+   `ps -p <pid>`), then remove that **exact** file — `rm
+   $JUPYTER_DATA_DIR/runtime/jpserver-<deadpid>.json`. Never broad-glob
+   the runtime dir; you could delete a live server's record.
+3. `labsh start` again — a real server launches (verify the pid changes
+   and `api/status` → 200).
+
+If the `labsh` binary itself was wiped (`start` fails rc=127), reinstall
+it (`make -C <labsh-checkout> install-lib`) before step 3.
+
 ## Network and auth
 
 `labsh` binds to `0.0.0.0` by default (reachable on the local network)
