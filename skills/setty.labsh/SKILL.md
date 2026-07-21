@@ -113,6 +113,43 @@ Outside the shared node, the same applies to any `grabnode` or `srun
 releasing the allocation, or you're leaking memory in the remaining
 walltime.
 
+## Troubleshooting: "server already running" but nothing serves (phantom-adopt)
+
+**Symptom.** `labsh start` refuses with *"server is already running (pid
+NNNN…)"* and returns non-zero, yet no server actually answers — every
+health probe / `curl …/api/status` fails, and a supervisor that blindly
+retries `start` re-adopts the same dead record on each attempt (a
+multi-minute outage that never self-heals).
+
+**Cause.** labsh's *start-guard* decides a server is running by scanning
+`$JUPYTER_DATA_DIR/runtime/jpserver-*.json` and trusting the recorded pid
+after only a bare `kill -0`. That check is too weak: after an abrupt node
+reboot the recorded pid is often **recycled by the OS to an unrelated
+live process** (or lingers as a zombie), so `kill -0` succeeds while
+nothing serves. The guard adopts the phantom. Note the asymmetry: `labsh
+status` *does* verify the pid's argv is a jupyter process (shows "servers:
+none"), so **`status` and the `start` guard can disagree** — trust
+`status`.
+
+**Fixed upstream** (labsh, pending release): the start-guard now reads
+`/proc/<pid>/cmdline` and requires a jupyter process before treating a
+record as live, matching what `labsh status` already did, and removes
+stale records as it finds them so `start` self-heals. Once your installed
+labsh carries that change, this section is obsolete. **Until then** (the
+cluster ships an older labsh), apply the manual cleanup below.
+
+**Manual cleanup (older labsh).**
+1. Confirm no live server: `labsh status` (and `labsh kernel ps`).
+2. For each stale record, verify its pid is dead or not a jupyter process
+   (`ps -p <pid> -o comm=`), then remove that **exact** file — `rm
+   $JUPYTER_DATA_DIR/runtime/jpserver-<deadpid>.json`. Never broad-glob
+   the runtime dir; you could delete a live server's record.
+3. `labsh start` again — a real server launches (verify the pid changes
+   and `api/status` → 200).
+
+If the `labsh` binary itself was wiped (`start` fails rc=127), reinstall
+it (`make -C <labsh-checkout> install-lib`) before step 3.
+
 ## Network and auth
 
 `labsh` binds to `0.0.0.0` by default (reachable on the local network)
