@@ -122,17 +122,26 @@ retries `start` re-adopts the same dead record on each attempt (a
 multi-minute outage that never self-heals).
 
 **Cause.** labsh's *start-guard* decides a server is running by scanning
-`$JUPYTER_DATA_DIR/runtime/jpserver-*.json` and reading the recorded
-pid+url **without checking the pid is alive**. A crash or an abrupt node
-reboot leaves stale `jpserver-<deadpid>.json` records behind; the guard
-trusts them. Note the asymmetry: `labsh status` *does* liveness-check
-(shows "servers: none"), so **`status` and the `start` guard can
-disagree** — trust `status`.
+`$JUPYTER_DATA_DIR/runtime/jpserver-*.json` and trusting the recorded pid
+after only a bare `kill -0`. That check is too weak: after an abrupt node
+reboot the recorded pid is often **recycled by the OS to an unrelated
+live process** (or lingers as a zombie), so `kill -0` succeeds while
+nothing serves. The guard adopts the phantom. Note the asymmetry: `labsh
+status` *does* verify the pid's argv is a jupyter process (shows "servers:
+none"), so **`status` and the `start` guard can disagree** — trust
+`status`.
 
-**Fix.**
+**Fixed upstream** (labsh, pending release): the start-guard now reads
+`/proc/<pid>/cmdline` and requires a jupyter process before treating a
+record as live, matching what `labsh status` already did, and removes
+stale records as it finds them so `start` self-heals. Once your installed
+labsh carries that change, this section is obsolete. **Until then** (the
+cluster ships an older labsh), apply the manual cleanup below.
+
+**Manual cleanup (older labsh).**
 1. Confirm no live server: `labsh status` (and `labsh kernel ps`).
-2. For each stale record, verify its pid is dead (`kill -0 <pid>` /
-   `ps -p <pid>`), then remove that **exact** file — `rm
+2. For each stale record, verify its pid is dead or not a jupyter process
+   (`ps -p <pid> -o comm=`), then remove that **exact** file — `rm
    $JUPYTER_DATA_DIR/runtime/jpserver-<deadpid>.json`. Never broad-glob
    the runtime dir; you could delete a live server's record.
 3. `labsh start` again — a real server launches (verify the pid changes

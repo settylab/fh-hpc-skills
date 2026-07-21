@@ -47,7 +47,7 @@ alias pip='uv pip'
 
 If you need a specific Python interpreter, point `uv` at it explicitly (`uv venv --python 3.11`) — don't fall back to `ml Python/...; pip install`.
 
-**This is not just slow — bare `pip` fork-storms to PID exhaustion and can take the node down.** On 2026-07-09 a single `pip download <pkg> --no-deps` re-exec'd the wrapped `/app/bin/pip` to **10,242 processes**; every subsequent `fork()` on the box failed with `resource temporarily unavailable`, killing the watcher and nine of twelve agent workers. Because `ps` itself could no longer fork, recovery meant killing thousands of pids straight out of `/proc`. So the rule is absolute:
+**This is not just slow — bare `pip` fork-storms to PID exhaustion and can take the node down.** A single `pip download <pkg> --no-deps` once re-exec'd the wrapped `/app/bin/pip` to **10,000+ processes**; every subsequent `fork()` on the box failed with `resource temporarily unavailable`, killing background services and most of the node's concurrent processes. Because `ps` itself could no longer fork, recovery meant killing thousands of pids straight out of `/proc`. So the rule is absolute:
 
 - **NEVER invoke `pip` in ANY form** — not `pip install`, `pip download`, `pip index`, `pip3`, nor `python -m pip`. The wrapper re-execs itself without bound.
 - Install with `uv pip install <pkg>` (seconds), one package at a time, under a hard `timeout`.
@@ -120,7 +120,9 @@ R-side equivalents (Monocle 3, `qs`/`anndataR`) live in `fh.r`.
 
 ## 5. tmux 2.6 garbles the Claude Code TUI
 
-The sandbox ships **tmux 2.6** (`tmux -V`). Claude Code's TUI uses synchronized output (DCS `?2026h/l`), RGB negotiation, and DCS passthrough — none proxied correctly before tmux 3.2–3.3 — so the display garbles intermittently ("malformed tmux"). No 2.6 config fully fixes it, and the active conf + `bin/tmux` wrapper live in the **read-only brew Cellar**, so the durable fix must be applied *outside* the sandbox (`brew install tmux` for 3.5+, then `set -as terminal-features ",*:RGB"`, `set -g allow-passthrough on`, `set -g focus-events on`). Runtime-safe mitigations an orchestrator *can* apply live: `tmux set -ga terminal-overrides ",*256col*:Tc"`, `tmux setw -g aggressive-resize on`, `tmux set -g assume-paste-time 1` (the last protects the watcher's paste channel). This is a `katosh/agent_sandbox` (user-public) concern, not nexus core.
+The sandbox ships **tmux 2.6** (`tmux -V`). Claude Code's TUI uses synchronized output (DCS `?2026h/l`), RGB negotiation, and DCS passthrough — none proxied correctly before tmux 3.2–3.3 — so the display garbles intermittently ("malformed tmux"). This is a **version limitation of the host's tmux, not a bug the sandbox can patch away in config**: no 2.6 config fully fixes the escape proxying.
+
+The durable fix is to **run a newer tmux**, and the sandbox already helps you there — the `bin/tmux` wrapper it ships auto-prefers a newer tmux binary if one is reachable, and its `sandbox-tmux.conf` already sets the Claude Code compatibility options (`terminal-features ",*:RGB"`, `allow-passthrough on`, extended-keys, truecolor override) behind version-safe `set -q` guards. So the one action left to you is to install a newer tmux **outside** the sandbox (`brew install tmux` for 3.5+); the wrapper picks it up automatically on the next session. No further config is required, and no sandbox change fixes the underlying 2.6 rendering — it is a host-version constraint.
 
 ## See Also
 
