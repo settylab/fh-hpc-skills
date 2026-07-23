@@ -91,6 +91,23 @@ When helping users with fast storage:
 4. For cross-lab sharing, direct them to email scicomp
 5. For large data transfers, suggest Motuz (web-based) or HutchGO (Globus)
 
+## Don't recursively scan large `/fh/fast` trees
+
+`/fh/fast` is a networked Isilon/NFS mount, and a research PI dir can hold
+enormous subtrees (many project checkouts, dataset dirs). An unbounded
+recursive `find .` / broad `grep -r` from a deep root is slow, floods
+metadata I/O on shared infrastructure, and returns noise. Prefer:
+
+- targeted reads of known paths (`ls <known-dir>`, `cat <known-file>`);
+- git-aware listings inside a repo (`git ls-files`, `git grep`) — they
+  skip `.git` and ignored/large dirs;
+- if you must search the filesystem, scope it tightly: a specific subdir,
+  `find … -maxdepth N`, or `rg --files <path>` — never a bare `find .`
+  from a PI-root or project-root with many large children.
+
+The cost is a shared-infrastructure cost (per the Principles below), not
+just your own wait — the metadata storm lands on everyone on the filer.
+
 ## Infrastructure Details
 
 | Property | Value |
