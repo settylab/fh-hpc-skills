@@ -290,6 +290,23 @@ jobs:
           file: coverage.xml
 ```
 
+**Gotcha: every `run:` block executes under `bash -e` by default** — even if
+you write `set -uo pipefail` at the top (that only *adds* `-u`/`-o pipefail`;
+it does not undo `-e`). So a `run:` block that *intentionally* invokes commands
+you expect to fail (re-running a failing test to capture its stderr, looping
+over a known-broken list, an exhaustive sweep) aborts after the first non-zero
+exit. Escape the wrapper explicitly:
+
+```yaml
+run: |
+  set +e            # ← escape the Actions -e wrapper (do this FIRST)
+  set -uo pipefail  # then add the other strict-mode flags
+  for t in "${tests[@]}"; do pytest "$t" || echo "captured failure: $t"; done
+```
+
+(Alternatively `shell: bash {0}` on the step drops `-e`, but `set +e` at the
+top of the block is more visible and self-documenting.)
+
 For conda-based projects:
 
 ```yaml

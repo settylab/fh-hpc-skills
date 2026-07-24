@@ -146,6 +146,30 @@ from kompot.plot import (
 
 Docs: [settylab/kompot](https://github.com/settylab/kompot), `kompot/docs/source/plotting.rst` in the repo. These functions accept standard matplotlib `ax=` / `figsize=` kwargs, so the rcParams drop-in applies. They handle rule-compliant styling internally (despining, tick limits) — if you see a kompot plot that violates the rules, that is a kompot bug, not yours to paper over.
 
+## Verifying an "editable vector PDF" — `pdffonts` is not enough
+
+When a figure must be delivered as an editable vector PDF, `pdf.fonttype=42`
+(above) handles the *font* half, but a dense scatter is often saved with
+`rasterized=True` (legitimate at 15k+ points), which embeds the plotted data
+as a raster layer behind otherwise-vector axes. **`pdffonts` reports only the
+font dictionaries** (Type42/TrueType, zero Type 3 — which *looks* like a pass)
+and structurally cannot see image XObjects, so it will bless a PDF whose data
+is 600-dpi raster. Always pair it with **`pdfimages -list file.pdf`**, which
+lists the embedded rasters:
+
+```bash
+ml poppler        # poppler is an Lmod module; run `ml` on its OWN line, never piped
+pdffonts fig.pdf              # fonts embedded + editable?
+pdfimages -list fig.pdf       # any rasterized data layers? (empty = fully vector)
+```
+
+Rasterising is fine — the defect is **non-disclosure**. The correct claim is
+"vector axes/text; the N-point scatter is a disclosed 600-dpi raster layer,"
+not "fully editable vector." (If `pdffonts` errors with `libpoppler.so…:
+cannot open shared object file`, you invoked the binary without `ml poppler` —
+it is installed, don't hand-roll a `pypdf` font-parser substitute, which sees
+fonts only and misses the rasters entirely.)
+
 ## Colors
 
 The lab commonly reaches for the matplotlib `Paired` qualitative palette for categorical data:
