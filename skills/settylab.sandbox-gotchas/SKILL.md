@@ -1,5 +1,5 @@
 ---
-description: "Sandbox-specific HPC notes for the agent-sandbox: bare pip fork-storms to PID exhaustion (use uv pip, never any pip), scientific-stack install traps (squidpy/Palantir/harmonypy/scIB), tmux 2.6 garbles the Claude Code TUI, Slurm sacct/squeue auto-scope semantics, x-access-token URL push form for one-shot cross-repo bot writes"
+description: "Sandbox-specific HPC notes for the agent-sandbox: bare pip fork-storms to PID exhaustion (use uv pip, never any pip), scientific-stack install traps (squidpy/Palantir/harmonypy/scIB), tmux 2.6 garbles the Claude Code TUI, Slurm sacct/squeue auto-scope semantics, x-access-token URL push form for one-shot cross-repo bot writes (always with -c credential.helper=, or the token gets cached)"
 ---
 
 # Setty Lab — agent-sandbox HPC notes
@@ -68,19 +68,21 @@ If you genuinely need cross-user accounting, that's a job for the user on the un
 
 ## 3. Cross-repo bot-token pushes — URL form
 
-For one-shot pushes to a repo where you don't want to install a credential helper (or where the helper is already configured for a different identity), inject the token into the push URL once. The URL form bypasses the credential helper entirely:
+For one-shot pushes to a repo where you don't want to install a credential helper (or where the helper is already configured for a different identity), inject the token into the push URL once. **Always disable the credential helpers on that command with `-c credential.helper=`** (an empty value resets the helper list):
 
 ```bash
 # Bot token (preferred for cross-repo writes; mint via the nexus helper,
 # run from your nexus root — the canonical invocation every nexus skill uses)
 TOKEN=$(./monitor/mint-token.sh)
-git push "https://x-access-token:${TOKEN}@github.com/<owner>/<repo>.git" <branch>
+git -c credential.helper= push "https://x-access-token:${TOKEN}@github.com/<owner>/<repo>.git" <branch>
 
 # Or, for user-identity pushes (commit graph stays you):
-git push "https://x-access-token:$(gh auth token)@github.com/<owner>/<repo>.git" <branch>
+git -c credential.helper= push "https://x-access-token:$(gh auth token)@github.com/<owner>/<repo>.git" <branch>
 ```
 
-Set the URL explicitly each invocation rather than caching it in a remote — bot tokens are short-lived and you don't want them in `.git/config`. For sustained bot-write workflows, prefer the `nexus.bot` skill's `ng` verbs (which mint per-call).
+The URL form does **not** bypass the helpers on its own. git hands a URL credential to every configured helper: on success it STOREs it, on an auth failure it ERASEs the matching entry. With the common global `credential.helper cache` (or `store`), one bot-token fetch or push makes that token the cached `github.com` credential for every later git command on the machine, in every session. A user-identity push then fails with `403 … denied to <bot>[bot]`, and `gh` can fail with `Resource not accessible by integration`. A stale token in a URL silently wipes the user's cached login. Measured with a recorder helper on git 2.17.1 and 2.56.0: without the flag, 1 `store` carrying the token on success and 1 `erase` on a wrong token; with it, neither. This applies to `fetch`, `ls-remote` and `clone` as much as to `push`.
+
+Set the URL explicitly each invocation rather than caching it in a remote — bot tokens are short-lived and you don't want them in `.git/config`. The token is also visible in the process's argv while it runs; a per-command helper that reads it from the environment avoids that (`git -c credential.helper= -c 'credential.helper=!f() { cat >/dev/null; test "$1" = get || exit 0; printf "username=x-access-token\npassword=%s\n" "$TOKEN"; }; f' push https://github.com/<owner>/<repo>.git <branch>`). For sustained bot-write workflows, prefer the `nexus.bot` skill's `ng` verbs (which mint per-call).
 
 ## 4. Scientific-stack install traps in the sandbox
 
