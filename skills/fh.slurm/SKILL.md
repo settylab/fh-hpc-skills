@@ -58,6 +58,8 @@ srun --cpus-per-task=4 --time=02:00:00 my_command
 | `--mail-user` | Email address | |
 | `--mail-type` | Events: BEGIN,END,FAIL,ALL | |
 
+**`--time` with two fields is MINUTES:SECONDS.** `--time=1:00` is one minute and `--time=0:30` is 30 seconds. Write H:MM:SS or D-HH:MM:SS.
+
 ### Backfill Scheduling with --time-min
 
 Shorter jobs are more likely to start quickly because the scheduler can backfill them into gaps. If your job can make useful progress in less than the maximum wall time, use `--time-min` alongside `--time` to let the scheduler know:
@@ -72,6 +74,8 @@ The scheduler may start the job in a 4-hour gap it would otherwise skip, allocat
 ### Memory at Fred Hutch
 
 Memory is advisory. Slurm ensures nodes have enough installed RAM but does not enforce per-job limits. Rule of thumb: request 1 CPU for every 4 GB of memory needed if exceeding 4 GB. Default unit is megabytes; always specify G for gigabytes.
+
+**Neither `--mem` nor `--time` is enforced, so bound the job from inside.** Measured: a `--mem=12G` job peaked at ~457 GiB, and 11 jobs of one project ran past `--time` (one by +22 h) with none ending TIMEOUT. An overrun eats co-located jobs' memory. Give every job an in-job wall bound (`timeout -k 60 <N> <cmd>`) and a memory bound equal to `--mem` (`ulimit -v` for one process; an RSS watchdog over the descendant tree, not the process group, for several), and test that each fires. `ulimit -v` caps virtual memory and misfires with BLAS/OpenMP arenas on many-core nodes: set `OMP_NUM_THREADS`/`OPENBLAS_NUM_THREADS` to `--cpus-per-task`. MaxRSS in `sacct` is sampled every 60 s, a lower bound. Watchdog design, misfire list and sizing rules: [reference/resource-bounds.md](reference/resource-bounds.md).
 
 ### Monitoring Jobs
 
@@ -94,6 +98,15 @@ sstat -j <jobID>
 # Historical job info (after completion)
 sacct -j <jobID> --format=JobID,JobName,Partition,State,ExitCode,Elapsed,MaxRSS
 ```
+
+**Waiting on several jobs: the break condition must cover ALL of them.** `sacct -j A,B | grep -E 'COMPLETED|FAILED' && break` exits when the FIRST one finishes. Count terminal states against the job count:
+
+```bash
+n=$(sacct -X -n -P -o State -j A,B | grep -cE '^(COMPLETED|FAILED|CANCELLED|TIMEOUT|OUT_OF_MEMORY)')
+[ "$n" -eq 2 ] && break
+```
+
+**A silent log is not a hang, and a queue estimate is not a state.** Read a stack dump or a second `sstat` delta before cancelling a quiet job, and read `squeue -u $USER -o '%i %T %r'` a couple of minutes after every submit rather than trusting a `--test-only` start estimate (details in `reference/resource-bounds.md`).
 
 **Limit squeue polling.** Scripts or monitoring loops that call `squeue` should sleep at least 30-60 seconds between calls. Tight polling (every few seconds) stresses the Slurm controller and can degrade scheduling for everyone on the cluster.
 
@@ -186,6 +199,14 @@ cp params.tsv params_jobXXX.tsv   # freeze before submitting
 sacct -j <arrayJobID> --format=JobID%20,State,ExitCode | grep -v "COMPLETED.*0:0"
 ```
 
+**`sacct -X` collapses unstarted tasks into ONE row** (`1234567_[21-34%12]` PENDING). Expand the range and check the parts sum to the array size before counting.
+
+**Sibling tasks that share an output directory collide.** Two tasks writing `scratch/` and `result.json` into one per-variant dir voided each other (`makedirs(exist_ok=False)` refused). List every output path per task, key shared dirs on `$SLURM_ARRAY_TASK_ID`, and test two sibling tasks into one dir. Have the summary line print the counts it read, not a fixed "all passed" string.
+
+**A per-task rate limit assumes uniform cost.** On an array whose cost grows along the index, every above-mean task trips a budget/N limit while the total is safe. Guard the projected aggregate and pilot the start, middle and end of the range.
+
+**Code is read when the job STARTS, not at submit.** Only the script is captured; every module and file it reads is read at start, which for a pending or dependent job can be hours later. While jobs are pending or running from a tree, edit in a separate clone, or run each job from `git worktree add --detach <sha>`, and stamp `git rev-parse HEAD` at start.
+
 ### Job Dependency Chaining
 
 Chain multi-step pipelines so each stage starts only after the previous one succeeds:
@@ -200,6 +221,9 @@ JOB2=$(sbatch --parsable --dependency=afterok:$JOB1 step2.sh)
 # Step 3 after step 2
 sbatch --dependency=afterok:$JOB2 step3.sh
 ```
+
+- `afterok:<array id>` covers EVERY element: after a partial `scancel` of an array (even of never-started tasks) the dependent sits at `DependencyNeverSatisfied` forever. Depend on the surviving element ids, and check `scontrol show job <dep> | grep -oE 'Reason=[^ ]*|Dependency=[^ ]*'` after submit.
+- `afterok:<id>` on an already-finished job works only while the controller still holds it (`MinJobAge`, 300 s here); after that sbatch refuses "Job dependency problem" though sacct shows COMPLETED. For a finished upstream, gate in the script on sacct (exactly one row, `COMPLETED|0:0`, fail closed).
 
 Dependency types: `afterok` (success), `afternotok` (failure, for cleanup), `afterany` (regardless of exit code), `after` (after start). For array jobs, `aftercorr` runs each task only after the corresponding task in the previous array completes.
 
@@ -270,7 +294,18 @@ HERE = Path(os.environ.get("SLURM_SUBMIT_DIR") or Path(__file__).resolve().paren
 sys.path.insert(0, str(HERE))
 ```
 
-Related: `#SBATCH --output=%x_%j.out` is also interpreted relative to `$SLURM_SUBMIT_DIR`, not to the script's location. Pass an absolute path if you want logs elsewhere.
+Related: `#SBATCH --output=%x_%j.out` is also interpreted relative to `$SLURM_SUBMIT_DIR`, not to the script's location. Pass an absolute path if you want logs elsewhere. (Inside the agent-sandbox, `%x` is refused and the script is delivered differently: bash body on stdin, Python staged with its `#SBATCH` lines stripped; see `settylab.sandbox-gotchas` §6.)
+
+### Gotcha: compute nodes are not one image
+
+- **System binaries differ by node class.** `/usr/bin/python3.6` hashed on the login node did not match the same path on another node class, so a job that sha-pinned it refused at start. Do not sha-pin `/usr/bin` or `/bin` binaries; use an interpreter on shared storage (a uv-managed Python on `/fh/fast`, see `fh.python`), or state which node classes the pin was validated on.
+- **Absolute tool paths may not exist.** `/usr/bin/sed` and `/usr/bin/grep` were absent on nodes checked (only `/bin/...`): a script calling them got empty output, and a downstream `grep -c` or an equality test over two empty substitutions then reported a confident 0 or a pass. Prefer bare names on a pinned `PATH`, or `ls -l` each absolute path the script uses ON A NODE first.
+- **Compute nodes write core files.** Login nodes run `ulimit -c 0`; compute nodes may not, and a deliberate crash in a test (`kill -SEGV $$`) left a several-hundred-KB `core` (holding the process environment) in the job's cwd. Run deliberate crashes under `ulimit -c 0` or `prlimit --core=0`.
+
+### Gotcha: what a submit check does not prove
+
+- **`sbatch --test-only` never runs the script.** It validates the request (partition, time, nodes), not argv or the body: a submit line missing an argument the script requires passes and fails at runtime. Check argv against the script's own parse lines.
+- **`RUNNING` seconds after submit only means the batch script started.** A wrapper that refuses on a bad argument looks identical for its first minute. Report "RUNNING at 0:29", and read the first lines of the `-o` file before saying the payload runs.
 
 ### Workflow Managers
 

@@ -1,5 +1,5 @@
 ---
-description: "Sandbox-specific HPC notes for the agent-sandbox: bare pip fork-storms to PID exhaustion (use uv pip, never any pip), scientific-stack install traps (squidpy/Palantir/harmonypy/scIB), tmux 2.6 garbles the Claude Code TUI, Slurm sacct/squeue auto-scope semantics, x-access-token URL push form for one-shot cross-repo bot writes"
+description: "Sandbox-specific HPC notes for the agent-sandbox: bare pip fork-storms to PID exhaustion (use uv pip, never any pip), scientific-stack install traps (squidpy/Palantir/harmonypy/scIB), tmux 2.6 garbles the Claude Code TUI, Slurm sacct/squeue auto-scope semantics, the sbatch chaperon (refused flags, --export, how the script is delivered, symlinked logs, scancel), sandbox mounts and host-wide /proc and ulimit counts, token-safe git pushes (env credential helper, never a token in the URL)"
 ---
 
 # Setty Lab — agent-sandbox HPC notes
@@ -8,7 +8,8 @@ TRIGGER when working inside the **agent-sandbox** (bwrap-mounted, kernel-enforce
 
 - `pip install` hangs for minutes with no output (especially `/app/bin/pip`)
 - `sacct` / `squeue` results look filtered or surprising and you're tempted to broaden the query
-- `git push` to a repo where you don't want to install a credential helper (one-shot bot-token writes)
+- `git push` with a token (one-shot cross-repo bot writes) or a push that suddenly authenticates as the wrong identity
+- `sbatch` refuses a flag, a job's environment, paths or logs differ from your session, or an `EROFS` appears
 
 If the user is on the regular Gizmo cluster (not the agent-sandbox), `fh.slurm`, `fh.python`, and `fh.github` are the right references; the pip rule still applies for consistency.
 
@@ -52,7 +53,7 @@ If you need a specific Python interpreter, point `uv` at it explicitly (`uv venv
 - **NEVER invoke `pip` in ANY form** — not `pip install`, `pip download`, `pip index`, `pip3`, nor `python -m pip`. The wrapper re-execs itself without bound.
 - Install with `uv pip install <pkg>` (seconds), one package at a time, under a hard `timeout`.
 - Check availability WITHOUT a resolver: `uv pip install --dry-run <pkg>` or `curl -s https://pypi.org/pypi/<pkg>/json`.
-- **Bound any command whose process tree can grow without a nameable limit** — `timeout <n>`, and `ulimit -u <n>` in a subshell (use `4096`, not `512` — `512` is too low for `timeout` itself to fork here).
+- **Bound any command whose process tree can grow without a nameable limit** — `timeout <n>`, and `ulimit -u <n>` in a subshell (use `4096`, not `512` — `512` is too low for `timeout` itself to fork here). `ulimit -u` counts the uid's processes host-wide, so a fixed cap can already be exceeded while a runaway is live; prefer a cap relative to your current count (§8).
 - Clean up by recorded pid, never `pkill -f <pattern>` (it reaps sibling workers sharing the launcher argv, plus your own shell).
 - **Package-name trap:** verify the *distribution* name before installing — e.g. the BCR/scVDJ tool is `sc-dandelion`, while `dandelion` on PyPI is an unrelated deep-learning framework.
 - Install a scientific package into a **separate throwaway venv**, never a pinned analysis `.venv` — a transitive `numpy`/`pandas` upgrade silently invalidates every number already computed.
@@ -66,21 +67,33 @@ If you need a specific Python interpreter, point `uv` at it explicitly (`uv venv
 
 If you genuinely need cross-user accounting, that's a job for the user on the unsandboxed login node.
 
-## 3. Cross-repo bot-token pushes — URL form
+Inside that scope, some queries still answer wrongly at rc 0 (details in `reference/slurm-chaperon.md` → Queries):
 
-For one-shot pushes to a repo where you don't want to install a credential helper (or where the helper is already configured for a different identity), inject the token into the push URL once. The URL form bypasses the credential helper entirely:
+- `sacct -s <STATE>` can return a silent zero; query without `-s` and filter with `awk`. The job that prompted the question must appear in the result.
+- `squeue %o` and `sacct SubmitLine` show only the chaperon wrapper, never your script: identify jobs by `-J` name and WorkDir.
+- `sstat -j <id>_<task>.batch` fails on array tasks; `sstat -j <id>_<task> -a` works.
+
+## 3. Token-bearing git pushes — keep the token in the environment, reset the helper list
+
+**Never put a token in a git URL or in argv** (`https://x-access-token:…@github.com/…`, `-c http.extraheader=…`; base64 is not protection). Measured in the sandbox:
+
+- the URL is in git's argv, readable via `/proc/<pid>/cmdline` by every same-uid process (sibling agents included) for the whole call;
+- with a global `credential.helper cache`, git **approves** the URL credential into the shared cache, so for the cache lifetime every session's "user" push to that host silently ran as the bot (403s);
+- a clone or fetch URL is written verbatim into `.git/logs/**` (reflog) and survives `remote set-url`.
+
+Use a helper that reads the token from the environment, and clear inherited helpers first:
 
 ```bash
-# Bot token (preferred for cross-repo writes; mint via the nexus helper,
-# run from your nexus root — the canonical invocation every nexus skill uses)
-TOKEN=$(./monitor/mint-token.sh)
-git push "https://x-access-token:${TOKEN}@github.com/<owner>/<repo>.git" <branch>
+# Bot identity, one-shot cross-repo write (T = a short-lived installation token, however your setup mints it)
+GH_TOKEN="$T" git -c credential.helper= \
+  -c credential.helper='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
+  push https://github.com/<owner>/<repo>.git <branch>
 
-# Or, for user-identity pushes (commit graph stays you):
-git push "https://x-access-token:$(gh auth token)@github.com/<owner>/<repo>.git" <branch>
+# User identity (commit graph stays you)
+git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin <branch>
 ```
 
-Set the URL explicitly each invocation rather than caching it in a remote — bot tokens are short-lived and you don't want them in `.git/config`. For sustained bot-write workflows, prefer the `nexus.bot` skill's `ng` verbs (which mint per-call).
+The leading empty `credential.helper=` clears the inherited list (the cache); on its own it fails rc 128 by design. If a user push fails "denied to …[bot]", a cached bot token is the first suspect: `git credential-cache exit` clears it, but the cache is shared, so ask first. Never print `git reflog`, `remote -v` or `config -l` of a repo that may once have been cloned with a tokenized URL. For sustained bot-write workflows, prefer tooling that mints per call (the `nexus.bot` skill in a nexus workspace).
 
 ## 4. Scientific-stack install traps in the sandbox
 
@@ -124,13 +137,50 @@ The sandbox ships **tmux 2.6** (`tmux -V`). Claude Code's TUI uses synchronized 
 
 The durable fix is to **run a newer tmux**, and the sandbox already helps you there — the `bin/tmux` wrapper it ships auto-prefers a newer tmux binary if one is reachable, and its `sandbox-tmux.conf` already sets the Claude Code compatibility options (`terminal-features ",*:RGB"`, `allow-passthrough on`, extended-keys, truecolor override) behind version-safe `set -q` guards. So the one action left to you is to install a newer tmux **outside** the sandbox (`brew install tmux` for 3.5+); the wrapper picks it up automatically on the next session. No further config is required, and no sandbox change fixes the underlying 2.6 rendering — it is a host-version constraint.
 
+Inside the cluster a newer tmux is also available through Lmod: `module load tmux/3.4-GCCcore-13.2.0` (the full name; a bare `tmux/3.4` does not resolve). That matches GitHub's `ubuntu-latest`, so a "fails only on tmux 3.x in CI" claim can be tested locally. Run it on a private socket (`env -u TMUX tmux -L <name>`), never against the session's live server (§8).
+
+## 6. Slurm through the sandbox chaperon
+
+`sbatch` goes through a whitelisting wrapper that re-wraps every job. Its refusals are terminal: never retry or route around one. Full list and measurements: [reference/slurm-chaperon.md](reference/slurm-chaperon.md).
+
+- **Refused:** `%x` in `--output`/`--error` (plain Slurm accepts it; use a literal prefix + `%j`/`%A_%a` here), `--kill-on-invalid-dep`, `--chdir`, `--input`, short flags like `-c1`, `#SBATCH` lines with inline comments, `--export` naming `PATH`, `--export=NONE,VAR`, `scontrol update ArrayTaskThrottle=`, and any submit whose cwd is outside the project (`cd /abs/project && sbatch …`). `--test-only` sees none of these.
+- **`--export=NONE` gives bash's default PATH**, so `git` is the system 2.17.1 and other tools are old: smoke every verb under `env -i PATH=/usr/bin:/bin` first. Put `--export=NONE` in the script too, and never export `*_TOKEN`-shaped variables (the job record stores them).
+- **Delivery differs from plain Slurm:** a bash body is piped to `bash -s` (`$0` = `/bin/bash`); a Python script is staged with its `#SBATCH` lines stripped and exec'd, so its shebang may carry only ONE argument (`-IB`, not `-I -B`) and a self-hash of `argv[0]` never matches. Fixtures must reproduce the real delivery.
+- **`$HOME` is a tmpfs** (lost at job end, rc 0); `$TMPDIR`'s bare job dir is shared with the chaperon: use your own subdir. **Logs are symlinks:** freeze with `cp -L` + `chmod 0444` before hashing or pinning.
+- **No `scancel` form has been shown to run an in-job trap; release resources from outside the job** once sacct shows it terminal. `scancel` may return rc 127 while the signal was delivered.
+
+## 7. Filesystem and environment inside the sandbox
+
+Detail: [reference/filesystem-and-processes.md](reference/filesystem-and-processes.md).
+
+- The parent of your project bind (`/fh/fast/<lab>`) is always read-only; after an `EROFS` read your project bind's own row in `/proc/mounts`. An RO incident is sandbox-local: Slurm jobs keep writing.
+- `/` is a writable private tmpfs, so a relative path after `cd /` really writes there. Probe with `test -w`, never `touch`.
+- After a mount repair, a long-lived shell's cwd can silently fail every relative write: `cd -- "$PWD"` per loop iteration and write by absolute path.
+- The scratchpad is on `/tmp`, another filesystem: `mv` into the project is copy + delete and can fail half-way. `/tmp` may be shared between sandboxes: never write into a pre-existing `/tmp` dir you did not create.
+- The batch environment (TMPDIR, cwd, injected variables) is not your session's; a session green is not evidence for a job. A session replay must copy the job's whole `export` block.
+
+## 8. Processes, `/proc` and the tmux server
+
+- `/proc/loadavg`, `/proc/stat` and `top`'s CPU line describe the whole node, not your sandbox; count your own tasks with `ps -u "$USER"`. Load is still the right number to record beside a timing-sensitive result.
+- `ulimit -u` is host-wide while `ps` shows only the namespace: use a cap relative to your current thread count, and treat `fork: Resource temporarily unavailable` as void, not a test failure.
+- **The tmux server is the sandbox.** `kill-server`, killing the last session, or `kill-window` on the last window ends every agent, service and the user's session. Test tmux only on `env -u TMUX tmux -L <private>`, with a short `TMUX_TMPDIR` (`sun_path` is 107 bytes).
+- Exit words: `Aborted` = it killed itself, `Killed` = SIGKILL (OOM or `kill -9`), `Terminated` = SIGTERM.
+
+## 9. Network, mail and git transport
+
+- **Check, do not assume, network isolation in batch jobs.** The filter has been observed to fall back to unfiltered on compute nodes, with a `network filter fell back from 'filtered' to 'open'` line in the job log. Without evidence of no traffic, write "network use not measured".
+- Outbound mail is disabled (exit 77): email is not an escalation channel from inside the sandbox.
+- `git@github.com:` failing "correct access rights" after `No user exists for uid N` is a passwd/NSS problem, not auth: `getent passwd "$(id -u)"`. Use HTTPS plus the §3 helper meanwhile.
+- `git clone` on NFS under a short `timeout` dies in checkout (rc 124); give clones a long bound.
+
 ## See Also
 
 - `setty.labsh` — project-local JupyterLab kernels; the canonical sandbox-friendly way to keep state across turns.
 - `fh.slurm` — generic Slurm submission patterns on Gizmo.
 - `fh.python` — Python on Gizmo; pairs with rule 1 (always `uv pip`).
-- `fh.github` — GitHub auth on Gizmo; pairs with rule 3 (URL-token push form).
-- `nexus.bot` — `ng` verbs for routine bot-identity GitHub writes; reach here before the URL-token form for anything that isn't a one-shot push.
+- `fh.github` — GitHub auth on Gizmo; pairs with rule 3 (env credential-helper push form).
+- `fh.storage-fast` → `reference/nfs-pitfalls.md` — NFS caching, mount entries, `st_dev` per node, setgid modes, hard-linked trees.
+- `nexus.bot` — `ng` verbs for routine bot-identity GitHub writes; reach here before the §3 helper form for anything that isn't a one-shot push.
 - Nexus `CLAUDE.md` § "Sandbox Integrity" — the full sandbox model, escape-attempt reporting, and how to request access expansion via `~/.config/agent-sandbox/sandbox.conf`.
 
 ## References

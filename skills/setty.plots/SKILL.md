@@ -220,6 +220,8 @@ fig.savefig("fig2a.svg", bbox_inches="tight")
 
 With `pdf.fonttype = 42` and `svg.fonttype = "none"` set in the drop-in above, text remains selectable/editable in Illustrator. Avoid `bbox_inches="tight"` on multi-panel figures where you care about exact panel sizing — `tight` trims whitespace and breaks panel-to-panel alignment.
 
+**Panel letters are not stable keys.** Compose scripts re-letter panels each draft, while function and file names keep the letter of the draft that created them. Resolve a letter in an instruction ("fix panel 3c") against the compose script's letter map or the rendered composite, and confirm by the panel's described content.
+
 ## Good vs bad
 
 | | Bad | Good |

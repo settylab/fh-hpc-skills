@@ -189,6 +189,8 @@ uv sync
 
 **Other Python interpreters** (Homebrew/Linuxbrew, pyenv-built, manually compiled, etc.) may be linked against a glibc version newer than what compute nodes provide. The symptom is `error while loading shared libraries` when the job runs, sometimes referencing an unexpected Python version — the root cause is the glibc mismatch, not the version shown in the error. If you hit this, switch to uv-managed or module Python.
 
+**uv discovery starts from the current directory.** `uv python find` and `uv run` inside a job start in `$SLURM_SUBMIT_DIR` and can pick up a stray `.venv` there, even when your test from another cwd passed. `cd` into the project before any uv discovery (or pass the interpreter path), and run your preflight from that same cwd. Do not sha-pin node-local `/usr/bin/python3*`: it differs between node images (see `fh.slurm` → compute nodes are not one image).
+
 #### C Extension Conflicts with Lmod Libraries
 
 When pip packages with C extensions (`python-igraph`, `h5py`, `netCDF4`, etc.) are installed alongside Lmod modules that provide the same C libraries, symbol conflicts cause `undefined symbol` or segfaults at import time. Solutions:
@@ -224,6 +226,15 @@ Key points:
 - **Use absolute paths** for the venv and project directory. `$SLURM_SUBMIT_DIR` is the directory where `sbatch` was called, which may not be the project root.
 - **Set `UV_CACHE_DIR`** to scratch (`/hpc/temp/$USER/...`) when using uv. The default cache location on NFS can cause slow startup as uv scans thousands of cached wheels.
 - **Do not rely on `~/.bashrc`** being sourced — Slurm jobs use non-interactive shells by default.
+- **Imports write outside your output dir.** `import scanpy` (via matplotlib → `fc-list`) issued writes under `/var/cache/fontconfig`, numba writes its cache into the venv, joblib uses `/dev/shm`. For a job that must write only to `$OUT`, set `MPLCONFIGDIR`, `XDG_CACHE_HOME`, `NUMBA_CACHE_DIR` under `$OUT` plus a `FONTCONFIG_FILE` whose `<cachedir prefix="xdg">` follows it, and prove it with strace (no system-cache touches AND some in the redirected dir).
+- **A shared venv's editable install can be repointed under a running job.** `uv run` from a scratch copy of the tree with `UV_PROJECT_ENVIRONMENT` pointing at the project's `.venv` reinstalled the editable package, so its `.pth` pointed at the copy mid-suite; `uv sync --frozen` then removed every package not in `uv.lock`. A pinned job asserts in-job that `pkg.__file__` is under the expected src and the `.pth` content is unchanged start to end.
+- **The interpreter's time zone may not be the shell's:** a uv/Linuxbrew Python reported `%Z`=UTC while logs were local, so a "wait until log ts ≥ my stamp" never fired. Print `%z` beside produced timestamps.
+
+### Python gotchas on Gizmo
+
+- **`os.chmod(path, mode, follow_symlinks=False)` raises `NotImplementedError`** (glibc 2.27; `os.chmod not in os.supports_follow_symlinks`). A link-safe chmod: `fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW)`, check `os.fstat(fd)` matches `os.lstat(p)` on `(st_dev, st_ino)` and is `S_ISREG`, then `os.fchmod(fd, 0o444)`.
+- **zarr 3.x + pyarrow under `ulimit -v`:** at ~1M rows they reached VmPeak 4.3 GB with 0.9 GB resident, so a 4 GB cap died with MemoryError. Use `pa.set_memory_pool(pa.system_memory_pool())`, `pa.set_cpu_count(1)`, `use_threads=False` and zarr's `threading.max_workers`, and measure `VmPeak` from `/proc/self/status` under the job's own limit.
+- **zarr opens more than you asked for.** `zarr.open_group(store, mode="r", use_consolidated=False)` still opened the root's `.zgroup`, `.zattrs` and `.zmetadata`. To read only specific arrays, `zarr.open_array` each leaf. Fill-value chunks are never written, so a missing chunk key is normal. Test scoped readers on fixtures that HAVE a `.zmetadata`, in zarr v2 and v3.
 
 ## Principles
 

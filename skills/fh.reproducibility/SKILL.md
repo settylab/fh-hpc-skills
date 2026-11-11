@@ -264,6 +264,12 @@ AI coding agents introduce specific reproducibility hazards:
 
 **Opaque provenance.** When an agent writes code, there is no automatic record of what was requested, what was generated, and what was modified. Git commits should attribute agent involvement and reference the task.
 
+**An editable install benchmarks the WORKING TREE.** With `uv pip install -e`, arms started at different times import different code while you patch or stash, and the contaminated rows usually flatter the fix. Export each arm with `git archive <ref> | tar -x -C trees/<name>` and select it by `PYTHONPATH`, run both arms in one job with a pinned seed, and print `git rev-parse HEAD` and `git status --porcelain` inside the job. In a detached worktree, an editable `.pth` in `site-packages` can still point at the primary clone: assert `realpath(pkg.__file__)` is under the worktree.
+
+**Bit-identical gates need a cross-node check.** An optimiser output equal on a one-sample smoke differed on 5 of 21 samples across nodes (1-2 ulp, one by 1e-4 through a clipped near-zero term). Before freezing an exact-equality gate, run more than one sample on more than one node, or pre-state an ulp/rtol tolerance; never add the tolerance after the gate fires.
+
+**Node-local system binaries differ between node images.** `/usr/bin/python3.6` on one compute node was a different build from the same path on others, so a job that sha-pinned it refused there. Run in-job interpreters from shared storage (uv-managed Python, Linuxbrew), and census a pin across several nodes before calling it node-independent. A fail-closed refusal on an unseen node image is correct behaviour, not a reason to `--exclude` the node.
+
 ### Reproducibility Checklist for Agent-Assisted Work
 
 Use this checklist when an AI coding agent has contributed to your analysis:
@@ -291,6 +297,7 @@ Record everything needed to reproduce a batch job:
 #SBATCH --time=8:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
+# (inside the agent-sandbox %x is refused: use a literal prefix, e.g. logs/my_analysis_%j.out)
 
 # Record execution environment
 echo "=== Reproducibility metadata ==="

@@ -39,6 +39,8 @@ Multiple workflow managers are used in bioinformatics, each with different stren
 
 **At Fred Hutch:** Not officially supported by SciComp but works well on Gizmo with the Slurm executor plugin.
 
+**Gotcha: a `shell:` expression is evaluated twice** (measured on Snakemake 9.11.6): at definition (the string printed, stored in metadata and the jobscript) and again at execution against module globals. Rules defined in a `for` loop whose `shell:` references the loop variable all RUN the last iteration's command while PRINTING the right one. Bind per-rule values through `params` with default-arg lambdas (`lambda w, s=_step: …`), keep `shell: "{params.cmd}"` literal, and verify by a marker only the real command writes, pushing one real job through the real executor before a long launch.
+
 ### WDL / Cromwell
 
 **Best for:** Broad Institute collaborations, Terra platform, clinical/regulated genomics.

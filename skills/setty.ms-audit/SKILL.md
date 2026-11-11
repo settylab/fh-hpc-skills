@@ -178,6 +178,7 @@ Show the report path. Offer:
 - **Two implementations of the same thing are a high-yield search target.** A vectorized batch path and a tree-iteration reference path of the same algorithm are an excellent place to find bugs even when neither side disagrees with the paper individually.
 - **Hyperparameter drift is real.** Paper says lr = 5 × 10⁻⁵; config says lr = 1 × 10⁻⁴ because someone tuned and forgot to update the paper. Cheap to check, often wrong.
 - **Notation traps.** A formula using `v` for a node and `v` for a function is a warning sign; verify the paper's `v` in storage matches the code's `v` in storage, not just both being plausible.
+- **A withheld value leaks back through aggregates.** When an item is marked pending and dropped from an enumeration, re-derive every range, min/max, "N of M" and % span over the retained set (a "4-16%" kept the withheld item's 16%), and grep every universal ("every", "all", "in each") for a claim it still makes about the withheld item, across every method and metric.
 - **REFUTED is a first-class outcome.** When the skeptic identifies the paper as the side with the typo, surface it as such — the user gets a paper edit out of it just as much as a `MISMATCH`.
 
 ## When to use this vs. siblings

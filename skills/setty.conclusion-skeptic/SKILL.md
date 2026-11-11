@@ -32,6 +32,7 @@ The most common explanation for a surprising result is a bug. Before reasoning a
 - **Are the inputs what you think they are?** Wrong file paths, stale data, swapped arguments, off-by-one in indexing, wrong parameter units, `obs_names` vs `var_names` confusion, log-vs-linear units.
 - **Did a recent code change break something?** Check `git blame` on the critical code path. If the result changed after a refactor, the refactor is suspect.
 - **Are there warnings or errors being silently swallowed?** Check stderr, log files, return codes, `try/except` blocks that catch broadly.
+- **Is the claim about the quantity that was measured?** Trace raw data to the plotted value, compare n per arm, and check that qualitative words were re-derived on the full data. Scope traps seen in lab analyses: [reference/statistical-traps.md](reference/statistical-traps.md) → Scope.
 
 ### 2. Is the comparison fair?
 
@@ -46,6 +47,7 @@ Many surprising results come from asymmetric evaluation:
 - **0% or 100% rates suggest something mechanical**, not scientific. A genuinely suboptimal method would still win occasionally by chance on easy datasets. "All DE genes are significant" or "no DE genes are significant" almost always means a threshold, filter, or denominator is wrong.
 - **Thousands-of-nats or many-orders-of-magnitude differences** between conditions that should be similar suggest a measurement issue, not a model limitation.
 - **Compare to known baselines.** If the literature reports method A beating method B by 5%, and you see A losing to B by 30%, something is wrong with your setup, not with method A.
+- Before accepting a p-value, share, percentile, rank cut or control, scan [reference/statistical-traps.md](reference/statistical-traps.md).
 
 ### 4. Does it contradict established results?
 
