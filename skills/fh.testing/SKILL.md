@@ -132,6 +132,20 @@ def reference_genome(tmp_path_factory):
     return ref_file
 ```
 
+#### Fixture realism: traps that keep a suite green
+
+A fixture CLEANER than the real data silently removes a code path. Each of these passed its suite and failed on real data.
+
+- **Make per-sample ids collide, as real ones do.** `anndata`'s writer turns a string `obs` column whose values are NOT all unique into a categorical; sample-prefixed (unique) fixture ids never trigger it. Pin the encoding of carried string columns at write time and check it on real output.
+- **Build fixtures with UNSORTED ids and orders.** `np.unique`, `sorted()`, `set()` and `sort_values` reorder, and ids derived from positions inherit it: an `np.unique` on a landmark list permuted every label, invisible on a pre-sorted fixture.
+- **Mirror the live modes and layout.** A writable fake tree hides EACCES on a read-only one; a `/tmp` tree has one mount and no setgid (see `fh.storage-fast`).
+- **Patching `sys.modules['x']` misses private loads.** Code that loads `x.py` via `importlib.util.spec_from_file_location` gets its own module object (a "skip sample X" patch silently included X). Patch every loaded module whose `__file__` is the target, and verify the effect from the run's own provenance, not from the absence of an error.
+- **Green alone, red in the full suite:** an earlier test's in-process import (a cached module from another checkout) poisoned a later fixture. Import pinned checkouts in a fresh subprocess; reproduce by running the polluter and the subject together, and confirm the pre-fix tree FAILS.
+- **float32 through JSON:** compare `np.array_equal(served.astype(np.float32), local)` (or rtol ≈ 1.2e-7), never a fixed `atol`: the parse error is relative, so `atol=1e-6` fails exact values above ~16. Pick test keys across the magnitude range.
+- **`round()` and `np.round` are half-to-even** (40.5 → 40, 41.5 → 42): a parity or grid-snap test on half-integers misclassifies about half the cases. Assert the post-condition on what was drawn.
+
+**Do not parse pytest's human output.** `addopts = -q` in `pytest.ini` plus `-q` on the command line gives `-qq`, which prints no `N passed` line (a job matching "1 passed" refused a passing run), and `--collect-only -qq` prints per-file counts, not ids. Read `pytest.ini`/`pyproject.toml` before adding flags, and judge on the exit code plus `--junitxml` counts.
+
 ### testthat (R)
 
 ```r
@@ -362,6 +376,8 @@ sbatch --cpus-per-task=4 --mem=16G --time=1:00:00 --wrap="cd /fh/fast/pi_name/pr
 # For GPU tests
 sbatch --partition=chorus --gres=gpu:1 --time=1:00:00 --wrap="ml fhPython/3.11.3-foss-2023a && pytest tests/test_gpu.py -v"
 ```
+
+**A job moves the temp roots your tests derive paths from.** When a job sets `TMPDIR`, put `--basetemp` under it (or omit it): tests anchoring on `tempfile.gettempdir()` saw every `tmp_path` outside the anchor and 31 of 127 refused, though all passed interactively. Run each job root (`TMPDIR`, `HOME`, `--basetemp`, `--rootdir`) through the code's path guards before submitting, and add one test asserting `tmp_path` lies under `gettempdir()`.
 
 Keep test datasets small. Store them in the repo under `tests/data/` or download them in a fixture. Do not store large test data in Git; use Git-LFS or download from a stable URL.
 

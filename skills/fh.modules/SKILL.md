@@ -82,6 +82,13 @@ ml JupyterLab/4.0.3-GCCcore-12.2.0 Seaborn/0.12.2-foss-2022b
 ml fhR                                 # default: fhR/4.4.1-foss-2023b
 ```
 
+### Module traps in scripts and agent shells
+
+- **`module` is a shell FUNCTION, so piping it discards its effect.** `module load X | tail` appears to succeed and the tool is still not found. Give `module load` its own unpiped line.
+- **When each command runs in a fresh shell** (agent tool calls, `ssh host cmd`), `module load` and the command that needs it go in the SAME call.
+- **LaTeX is not on the bare PATH** (no `pdflatex`, `latexmk`, `pdftoppm`): `module load texlive/20210324-GCC-11.2.0`, run `pdflatex` 2-3 times, and render pages to check with `gs -sDEVICE=png16m`.
+- **Use the full module name** when the short one does not resolve: `module load tmux/3.4-GCCcore-13.2.0` works where `tmux/3.4` does not.
+
 ### Choosing Between Rhino and Gizmo
 
 | Environment | Use Case | Key Trait |

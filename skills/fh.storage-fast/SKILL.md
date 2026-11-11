@@ -104,6 +104,17 @@ When helping users with fast storage:
 | Physical location | On-premise data center, low-latency from gizmo nodes |
 | Performance | Good sequential throughput via NFS; for random I/O-heavy workloads, stage to `$TMPDIR` or `/dev/shm` |
 
+## Behaviour that bites scripts
+
+Each compute node is its own NFS client with attribute caching, and metadata operations are slow. Measurements and recipes: [reference/nfs-pitfalls.md](reference/nfs-pitfalls.md).
+
+- **Cross-node views lag up to ~60 s.** A directory `lstat` returns cached mtime until you list it, a path seen absent can stay ENOENT after another node creates it, and a symlink flip reaches other nodes in seconds to a minute. List before you stat; re-probe with a bound before declaring a swap or an absence.
+- **`st_dev` differs per node** for the same file and one device appears as ~14 mount entries: pin inode + mount identity, never `st_dev`; map paths by longest mount prefix.
+- **Lab dirs are setgid** (`2555`, not `555`): assert "no write bits", not an exact mode.
+- **Hard-linked trees (`cp -al`):** `du` overstates what a delete frees; the copy inherits read-only directory modes; a chmod on any file changes every twin; metadata dot-files are shared too.
+- **Fresh deletes can fail on `.nfs*` silly-rename files**; keep short-lived temp node-local.
+- **Tree walks, `cp -al`, large `rsync`/`rm -rf` are compute:** run them in Slurm, size them from a compute-node pilot on the target tree (login-node and warm-cache rates are off by ~10x), and keep them away from benchmarks on the same filer.
+
 ## Principles
 
 - Request only the resources you need (CPUs, memory, time)
